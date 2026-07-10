@@ -1,3 +1,8 @@
+import type {
+  EducationReminderCard,
+  EducationSafetyAlert,
+  EducationTopic,
+} from '../shared/education';
 import {
   DEFAULT_HUD_STATE,
   type GameOverSummary,
@@ -242,7 +247,7 @@ const UI_MARKUP = `
           role="dialog"
           aria-modal="true"
           aria-labelledby="game-over-title"
-          aria-describedby="game-over-reason game-over-education game-over-action"
+          aria-describedby="game-over-reason game-over-education game-over-action game-over-disclaimer"
           tabindex="-1"
           hidden
         >
@@ -273,6 +278,82 @@ const UI_MARKUP = `
               </div>
             </dl>
 
+            <div class="failure-box" data-result-reason-box>
+              <span data-reason-label>中途停止原因</span>
+              <strong id="game-over-reason" data-failure-reason>體力耗盡</strong>
+            </div>
+
+            <p class="education-focus-label"><span aria-hidden="true">🎯</span> 本局重點提醒</p>
+            <blockquote
+              id="game-over-education"
+              class="education-message"
+              data-education-message
+            >
+              休息不是偷懶，而是訓練計畫的一部分。
+            </blockquote>
+
+            <div class="education-action">
+              <span>下次可以</span>
+              <p id="game-over-action" data-education-action>把恢復日直接寫進訓練課表。</p>
+            </div>
+
+            <p id="game-over-disclaimer" class="game-over-disclaimer">
+              一般衛教，不取代醫療診斷、個別訓練處方或營養評估。
+            </p>
+
+            <details
+              class="education-hub"
+              data-education-hub
+              data-testid="education-hub"
+              hidden
+            >
+              <summary>
+                <span>
+                  <strong>衛教補給站</strong>
+                  <small data-education-hub-teaser>訓練・傷害・營養</small>
+                </span>
+                <span class="education-hub__toggle" aria-hidden="true"></span>
+              </summary>
+              <p class="education-hub__intro">每局輪替三個一般重點；切換分類，每次帶走一件事。</p>
+              <div
+                class="education-topic-switcher"
+                data-education-topic-switcher
+                role="group"
+                aria-label="衛教主題"
+              ></div>
+              <article
+                id="education-reminder-panel"
+                class="education-reminder-card"
+                data-education-reminder-card
+                aria-labelledby="education-reminder-title"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <div class="education-reminder-card__heading">
+                  <span class="education-reminder-card__icon" data-reminder-icon aria-hidden="true"></span>
+                  <span>
+                    <small data-reminder-topic></small>
+                    <strong id="education-reminder-title" data-reminder-title></strong>
+                  </span>
+                </div>
+                <p data-reminder-message></p>
+                <p class="education-reminder-card__action">
+                  <strong>帶走一件事</strong>
+                  <span data-reminder-action></span>
+                </p>
+                <a
+                  class="education-reminder-card__source"
+                  data-reminder-source
+                  target="_blank"
+                  rel="noopener noreferrer"
+                ></a>
+              </article>
+              <aside class="education-safety-alert" data-education-safety-alert>
+                <strong data-safety-alert-title></strong>
+                <p data-safety-alert-message></p>
+              </aside>
+            </details>
+
             <form class="score-save-form" data-score-form novalidate>
               <div class="score-save-form__heading">
                 <label for="leaderboard-name">把本次成績送上跨裝置排行榜</label>
@@ -296,24 +377,6 @@ const UI_MARKUP = `
               <p id="score-save-status" class="score-save-status" data-score-save-status aria-live="polite"></p>
             </form>
 
-            <div class="failure-box" data-result-reason-box>
-              <span data-reason-label>中途停止原因</span>
-              <strong id="game-over-reason" data-failure-reason>體力耗盡</strong>
-            </div>
-
-            <blockquote
-              id="game-over-education"
-              class="education-message"
-              data-education-message
-            >
-              休息不是偷懶，而是訓練計畫的一部分。
-            </blockquote>
-
-            <div class="education-action">
-              <span>下次可以</span>
-              <p id="game-over-action" data-education-action>把恢復日直接寫進訓練課表。</p>
-            </div>
-
             <div class="result-actions">
               <button class="button button--primary" data-testid="restart-button" type="button">
                 <span aria-hidden="true">↻</span>
@@ -322,6 +385,15 @@ const UI_MARKUP = `
               <button class="button button--secondary" data-share-button type="button">
                 <span aria-hidden="true">↗</span>
                 分享成績
+              </button>
+              <button
+                class="button button--secondary"
+                data-download-share-card
+                data-testid="download-share-card-button"
+                type="button"
+              >
+                <span aria-hidden="true">↓</span>
+                儲存分享圖
               </button>
               <button
                 class="button button--secondary"
@@ -397,8 +469,20 @@ const UI_MARKUP = `
     </main>
 
     <footer class="medical-disclaimer">
-      <span aria-hidden="true">ℹ️</span>
-      本遊戲僅供娛樂與衛教，不取代醫療診斷、個別評估或正式備賽計畫。
+      <span class="medical-disclaimer__notice">
+        <span aria-hidden="true">ℹ️</span>
+        本遊戲僅供娛樂與衛教，不取代醫療診斷、個別評估或正式備賽計畫。
+      </span>
+      <span class="creator-credit">
+        製作者
+        <a
+          data-testid="creator-link"
+          href="https://sportsmedicine.tw/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="前往運動醫學科吳易澄醫師網站（另開新分頁）"
+        >運動醫學科 吳易澄醫師</a>
+      </span>
     </footer>
   </div>
 `;
@@ -433,8 +517,13 @@ export class GameUI {
   private shareText = '';
   private shareCardInput: ShareCardInput | null = null;
   private shareCardFilePromise: Promise<File | null> | null = null;
+  private shareContentGeneration = 0;
+  private scoreSubmissionPending = false;
+  private shareAssetOperationPending = false;
   private renderedStatusSignature = '';
   private feedbackTimerId: number | null = null;
+  private educationReminders: readonly EducationReminderCard[] = [];
+  private activeEducationTopic: EducationTopic | null = null;
 
   private readonly frame: HTMLElement;
   private readonly homeScreen: HTMLElement;
@@ -598,6 +687,7 @@ export class GameUI {
     };
     this.shareText = summary.shareText?.trim() || buildShareText(this.shareCardInput);
     this.shareCardFilePromise = this.prepareShareCardFile(this.shareCardInput);
+    this.shareContentGeneration += 1;
     this.gameOverScreen.dataset.outcome = outcome;
     this.element<HTMLElement>('[data-outcome-banner]').dataset.outcome = outcome;
     this.element<HTMLElement>('[data-result-reason-box]').dataset.outcome = outcome;
@@ -614,6 +704,11 @@ export class GameUI {
     this.text('[data-failure-reason]', summary.failureReason);
     this.text('[data-education-message]', summary.educationMessage);
     this.text('[data-education-action]', summary.educationAction);
+    this.renderEducationReminders(
+      summary.educationReminders ?? [],
+      summary.educationFocusTopic,
+      summary.educationSafetyAlert,
+    );
     this.text('[data-share-status]', '');
     this.element('[data-new-record]').hidden = !summary.isNewHighScore;
     this.setView('game-over');
@@ -623,8 +718,7 @@ export class GameUI {
     if (this.shareCardInput === null) return;
 
     this.shareCardInput = { ...this.shareCardInput, nickname: name };
-    this.shareText = buildShareText(this.shareCardInput);
-    this.shareCardFilePromise = this.prepareShareCardFile(this.shareCardInput);
+    this.refreshShareContent();
   }
 
   /** 顯示控制層已排序資料的前 10 筆；所有動態文字均以 textContent 寫入。 */
@@ -733,6 +827,16 @@ export class GameUI {
       safeRank > 0
         ? `已通過伺服器驗證！${safeName} 目前是第 ${safeRank} 名。`
         : '成績已通過驗證並儲存，但目前未進入前 10 名。';
+
+    if (this.shareCardInput !== null) {
+      this.shareCardInput = {
+        ...this.shareCardInput,
+        nickname: safeName,
+        leaderboardRank: safeRank > 0 ? safeRank : null,
+      };
+      this.refreshShareContent();
+    }
+    this.setScoreSubmissionPending(false);
   }
 
   setScoreSaveError(message: string): void {
@@ -745,6 +849,7 @@ export class GameUI {
     button.textContent = '重新儲存';
     status.dataset.state = 'error';
     status.textContent = message.trim() || '成績儲存失敗，請再試一次。';
+    this.setScoreSubmissionPending(false);
     input.focus({ preventScroll: true });
   }
 
@@ -761,6 +866,7 @@ export class GameUI {
     button.textContent = '送出驗證';
     status.removeAttribute('data-state');
     status.textContent = '';
+    this.setScoreSubmissionPending(false);
   }
 
   destroy(): void {
@@ -771,6 +877,20 @@ export class GameUI {
 
   private bindControls(): void {
     const signal = this.eventController.signal;
+
+    this.element<HTMLElement>('[data-education-topic-switcher]').addEventListener(
+      'click',
+      (event) => {
+        const button =
+          event.target instanceof Element
+            ? event.target.closest<HTMLButtonElement>('[data-education-topic]')
+            : null;
+        const topic = button?.dataset.educationTopic;
+        if (!this.isEducationTopic(topic)) return;
+        this.setActiveEducationTopic(topic);
+      },
+      { signal },
+    );
 
     this.element<HTMLButtonElement>('[data-testid="start-button"]').addEventListener(
       'click',
@@ -861,6 +981,12 @@ export class GameUI {
       { signal },
     );
 
+    this.element<HTMLButtonElement>('[data-download-share-card]').addEventListener(
+      'click',
+      () => void this.downloadShareCard(),
+      { signal },
+    );
+
     this.root.querySelectorAll<HTMLButtonElement>('[data-leaderboard-open]').forEach((button) => {
       button.addEventListener(
         'click',
@@ -886,6 +1012,12 @@ export class GameUI {
         const status = this.element<HTMLElement>('[data-score-save-status]');
         const name = input.value.trim().slice(0, 12);
 
+        if (this.shareAssetOperationPending) {
+          status.dataset.state = 'pending';
+          status.textContent = '分享處理完成後即可送出排行榜驗證。';
+          return;
+        }
+
         if (!name) {
           input.setAttribute('aria-invalid', 'true');
           status.dataset.state = 'error';
@@ -898,8 +1030,9 @@ export class GameUI {
         input.disabled = true;
         input.removeAttribute('aria-invalid');
         button.disabled = true;
+        this.setScoreSubmissionPending(true);
         status.dataset.state = 'pending';
-        status.textContent = '正在驗證與儲存本次成績…';
+        status.textContent = '正在驗證成績；完成後即可分享含名次的圖卡…';
         this.callbacks.onScoreSubmit(name);
       },
       { signal },
@@ -1134,6 +1267,119 @@ export class GameUI {
     });
   }
 
+  private renderEducationReminders(
+    reminders: readonly EducationReminderCard[],
+    preferredTopic: EducationTopic | undefined,
+    safetyAlert: EducationSafetyAlert | undefined,
+  ): void {
+    const hub = this.element<HTMLDetailsElement>('[data-education-hub]');
+    const switcher = this.element<HTMLElement>('[data-education-topic-switcher]');
+    const uniqueReminders: EducationReminderCard[] = [];
+
+    reminders.forEach((reminder) => {
+      if (
+        uniqueReminders.length < 3 &&
+        this.isEducationTopic(reminder.topic) &&
+        !uniqueReminders.some((current) => current.topic === reminder.topic)
+      ) {
+        uniqueReminders.push(reminder);
+      }
+    });
+
+    this.educationReminders = uniqueReminders;
+    switcher.replaceChildren();
+    if (uniqueReminders.length === 0) {
+      this.activeEducationTopic = null;
+      hub.hidden = true;
+      return;
+    }
+
+    const initialTopic =
+      preferredTopic && uniqueReminders.some((reminder) => reminder.topic === preferredTopic)
+        ? preferredTopic
+        : uniqueReminders[0]?.topic;
+    this.activeEducationTopic = initialTopic ?? null;
+
+    uniqueReminders.forEach((reminder) => {
+      const button = document.createElement('button');
+      const isPreferred = reminder.topic === preferredTopic;
+      button.type = 'button';
+      button.className = 'education-topic-button';
+      button.dataset.educationTopic = reminder.topic;
+      button.dataset.recommended = String(isPreferred);
+      button.setAttribute('aria-controls', 'education-reminder-panel');
+      button.setAttribute('aria-pressed', String(reminder.topic === this.activeEducationTopic));
+      button.setAttribute(
+        'aria-label',
+        `${reminder.topicLabel}${isPreferred ? '，本局建議先看' : ''}`,
+      );
+      button.textContent = `${reminder.icon} ${reminder.topicLabel}`;
+      switcher.append(button);
+    });
+
+    const alert = this.element<HTMLElement>('[data-education-safety-alert]');
+    alert.hidden = safetyAlert === undefined;
+    this.text('[data-safety-alert-title]', safetyAlert?.title ?? '');
+    this.text('[data-safety-alert-message]', safetyAlert?.message ?? '');
+
+    hub.hidden = false;
+    hub.open = false;
+    this.renderActiveEducationReminder();
+    const teaserReminder =
+      uniqueReminders.find((reminder) => reminder.topic === initialTopic) ?? uniqueReminders[0];
+    if (teaserReminder) {
+      this.text(
+        '[data-education-hub-teaser]',
+        `本局先看：${teaserReminder.topicLabel}・${teaserReminder.title}`,
+      );
+    }
+  }
+
+  private setActiveEducationTopic(topic: EducationTopic): void {
+    if (!this.educationReminders.some((reminder) => reminder.topic === topic)) return;
+    this.activeEducationTopic = topic;
+    this.renderActiveEducationReminder();
+  }
+
+  private renderActiveEducationReminder(): void {
+    const reminder =
+      this.educationReminders.find((current) => current.topic === this.activeEducationTopic) ??
+      this.educationReminders[0];
+    if (!reminder) return;
+
+    this.activeEducationTopic = reminder.topic;
+    const card = this.element<HTMLElement>('[data-education-reminder-card]');
+    card.dataset.topic = reminder.topic;
+    this.text('[data-reminder-icon]', reminder.icon);
+    this.text('[data-reminder-topic]', reminder.topicLabel);
+    this.text('[data-reminder-title]', reminder.title);
+    this.text('[data-reminder-message]', reminder.message);
+    this.text('[data-reminder-action]', reminder.action);
+
+    const source = this.element<HTMLAnchorElement>('[data-reminder-source]');
+    const sourceUrl = this.safeExternalUrl(reminder.source.url);
+    source.hidden = sourceUrl === null;
+    source.href = sourceUrl ?? '#';
+    source.textContent = sourceUrl ? `資料參考：${reminder.source.label} ↗` : '';
+
+    this.root.querySelectorAll<HTMLButtonElement>('[data-education-topic]').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.educationTopic === reminder.topic));
+    });
+  }
+
+  private isEducationTopic(value: string | undefined): value is EducationTopic {
+    return value === 'training' || value === 'injury' || value === 'nutrition';
+  }
+
+  private safeExternalUrl(value: string): string | null {
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' ? url.href : null;
+    } catch {
+      return null;
+    }
+  }
+
   private clearFeedback(): void {
     if (this.feedbackTimerId !== null) {
       window.clearTimeout(this.feedbackTimerId);
@@ -1145,24 +1391,24 @@ export class GameUI {
   }
 
   private async shareResult(): Promise<void> {
-    const text = this.shareText.trim();
     const status = this.element<HTMLElement>('[data-share-status]');
-    const button = this.element<HTMLButtonElement>('[data-share-button]');
-
-    if (!text) {
-      status.textContent = '目前沒有可分享的成績。';
-      this.callbacks.onShare(text, 'unavailable');
-      return;
-    }
-
-    button.disabled = true;
+    let text = '';
     let method: ShareMethod = 'unavailable';
+    this.setShareAssetOperationPending(true);
 
     try {
+      const payload = await this.getLatestShareContent();
+      text = payload.text;
+      if (!text) {
+        status.textContent = '目前沒有可分享的成績。';
+        return;
+      }
+
       if (typeof navigator.share === 'function') {
-        const file = await this.shareCardFilePromise;
         const textPayload: ShareData = { title: '馬拉松完賽訓練', text };
-        const imagePayload: ShareData | null = file ? { ...textPayload, files: [file] } : null;
+        const imagePayload: ShareData | null = payload.file
+          ? { ...textPayload, files: [payload.file] }
+          : null;
         let canShareImage = false;
 
         if (imagePayload && typeof navigator.canShare === 'function') {
@@ -1175,12 +1421,14 @@ export class GameUI {
 
         await navigator.share(canShareImage && imagePayload ? imagePayload : textPayload);
         method = 'web-share';
-        status.textContent = canShareImage ? '成績卡已分享！' : '成績文字已分享！';
+        status.textContent = canShareImage
+          ? '成績卡已分享！'
+          : '成績文字已分享；可另按「儲存分享圖」。';
       } else if (await this.copyToClipboard(text)) {
         method = 'clipboard';
-        status.textContent = '成績文字已複製！';
+        status.textContent = '成績文字已複製；可另按「儲存分享圖」。';
       } else {
-        status.textContent = '無法自動複製，請手動複製成績。';
+        status.textContent = '無法自動複製；仍可按「儲存分享圖」。';
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -1188,14 +1436,80 @@ export class GameUI {
         status.textContent = '已取消分享。';
       } else if (await this.copyToClipboard(text)) {
         method = 'clipboard';
-        status.textContent = '成績文字已複製！';
+        status.textContent = '成績文字已複製；可另按「儲存分享圖」。';
       } else {
         status.textContent = '分享失敗，請稍後再試。';
       }
     } finally {
-      button.disabled = false;
+      this.setShareAssetOperationPending(false);
       this.callbacks.onShare(text, method);
     }
+  }
+
+  private async downloadShareCard(): Promise<void> {
+    const status = this.element<HTMLElement>('[data-share-status]');
+    let text = '';
+    let method: ShareMethod = 'unavailable';
+    this.setShareAssetOperationPending(true);
+
+    try {
+      const payload = await this.getLatestShareContent();
+      text = payload.text;
+      if (!payload.file || typeof URL.createObjectURL !== 'function') {
+        status.textContent = '這個瀏覽器無法產生成績圖，仍可分享成績文字。';
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(payload.file);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = payload.file.name;
+      anchor.hidden = true;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      method = 'download';
+      status.textContent = '1080×1080 成績分享圖已儲存！';
+    } catch {
+      status.textContent = '成績圖儲存失敗，請稍後再試。';
+    } finally {
+      this.setShareAssetOperationPending(false);
+      this.callbacks.onShare(text, method);
+    }
+  }
+
+  private async getLatestShareContent(): Promise<{ text: string; file: File | null }> {
+    while (true) {
+      const generation = this.shareContentGeneration;
+      const text = this.shareText.trim();
+      const file = await (this.shareCardFilePromise ?? Promise.resolve(null));
+      if (generation === this.shareContentGeneration) return { text, file };
+    }
+  }
+
+  private setScoreSubmissionPending(pending: boolean): void {
+    this.scoreSubmissionPending = pending;
+    this.syncShareActionState();
+  }
+
+  private setShareAssetOperationPending(pending: boolean): void {
+    this.shareAssetOperationPending = pending;
+    this.syncShareActionState();
+
+    const input = this.element<HTMLInputElement>('[data-score-name]');
+    const submit = this.element<HTMLButtonElement>('[data-score-submit]');
+    if (pending) {
+      submit.disabled = true;
+    } else if (!this.scoreSubmissionPending && !input.disabled) {
+      submit.disabled = false;
+    }
+  }
+
+  private syncShareActionState(): void {
+    const disabled = this.scoreSubmissionPending || this.shareAssetOperationPending;
+    this.element<HTMLButtonElement>('[data-share-button]').disabled = disabled;
+    this.element<HTMLButtonElement>('[data-download-share-card]').disabled = disabled;
   }
 
   private async copyToClipboard(text: string): Promise<boolean> {
@@ -1229,6 +1543,13 @@ export class GameUI {
       return Promise.resolve(null);
     }
     return createShareCardFile(input);
+  }
+
+  private refreshShareContent(): void {
+    if (this.shareCardInput === null) return;
+    this.shareText = buildShareText(this.shareCardInput);
+    this.shareCardFilePromise = this.prepareShareCardFile(this.shareCardInput);
+    this.shareContentGeneration += 1;
   }
 
   private text(selector: string, value: string): void {

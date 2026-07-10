@@ -1,3 +1,9 @@
+import type {
+  EducationReminderCard,
+  EducationSafetyAlert,
+  EducationTopic,
+} from '../shared/education';
+
 export const OBSTACLE_TYPES = ['illness', 'sportsInjury', 'overtraining'] as const;
 
 export type ObstacleType = (typeof OBSTACLE_TYPES)[number];
@@ -140,6 +146,9 @@ export interface GameOverResult {
   isNewHighScore: boolean;
   educationMessage: string;
   educationAction: string;
+  educationReminders: readonly EducationReminderCard[];
+  educationFocusTopic: EducationTopic;
+  educationSafetyAlert: EducationSafetyAlert;
 }
 
 /**

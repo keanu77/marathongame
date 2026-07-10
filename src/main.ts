@@ -193,6 +193,9 @@ gameEventBus.on(GAME_EVENTS.gameOver, (result: GameOverResult) => {
     failureReason: resultDescription,
     educationMessage: result.educationMessage,
     educationAction: result.educationAction,
+    educationReminders: result.educationReminders,
+    educationFocusTopic: result.educationFocusTopic,
+    educationSafetyAlert: result.educationSafetyAlert,
     isNewHighScore: result.isNewHighScore,
     outcome: result.outcome,
     stageNumber: toStageNumber(result.stageIndex),
@@ -420,7 +423,6 @@ async function saveLatestResult(name: string): Promise<void> {
     currentRunSession = null;
     runSessionPromise = null;
     ui.setScoreSaved(response.rank, response.entry.name);
-    ui.setSharePlayerName(response.entry.name);
   } catch (error) {
     ui.setScoreSaveError(getNetworkErrorMessage(error));
   }

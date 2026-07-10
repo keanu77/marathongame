@@ -237,6 +237,13 @@ describe('結束原因與衛教', () => {
     expect(result.stageId).toBe('race');
     expect(result.overallProgress).toBe(1);
     expect(result.educationMessage).toContain('完成三階段');
+    expect(result.educationReminders.map((card) => card.topic)).toEqual([
+      'training',
+      'injury',
+      'nutrition',
+    ]);
+    expect(result.educationFocusTopic).toBe('nutrition');
+    expect(result.educationSafetyAlert.message).toContain('緊急醫療');
   });
 });
 

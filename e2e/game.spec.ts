@@ -17,6 +17,8 @@ declare global {
       text: string;
       fileCount: number;
       fileType: string;
+      imageWidth: number;
+      imageHeight: number;
     };
   }
 }
@@ -113,6 +115,30 @@ test('首頁可以載入', async ({ page }) => {
   await expect(page.getByText('基礎期', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('正式比賽', { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId('start-button')).toBeEnabled();
+});
+
+test('頁尾顯示製作者連結且手機版不會水平溢位', async ({ page }) => {
+  const creatorLink = page.getByTestId('creator-link');
+  await expect(creatorLink).toBeVisible();
+  await expect(creatorLink).toHaveText('運動醫學科 吳易澄醫師');
+  await expect(creatorLink).toHaveAttribute('href', 'https://sportsmedicine.tw/');
+  await expect(creatorLink).toHaveAttribute('target', '_blank');
+  await expect(creatorLink).toHaveAttribute('rel', /noopener/);
+
+  const layout = await page.evaluate(() => {
+    const footer = document.querySelector<HTMLElement>('.medical-disclaimer');
+    const creatorLink = document.querySelector<HTMLElement>('[data-testid="creator-link"]');
+    return {
+      footerBottom: footer?.getBoundingClientRect().bottom ?? Number.POSITIVE_INFINITY,
+      creatorLinkHeight: creatorLink?.getBoundingClientRect().height ?? 0,
+      viewportHeight: window.innerHeight,
+      hasHorizontalOverflow:
+        document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    };
+  });
+  expect(layout.footerBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.creatorLinkHeight).toBeGreaterThanOrEqual(44);
+  expect(layout.hasHorizontalOverflow).toBe(false);
 });
 
 test('點擊開始後進入遊戲', async ({ page }) => {
@@ -327,6 +353,49 @@ test('完成三關後顯示 42.195 公里完賽結算', async ({ page }) => {
   await expect(page.locator('[data-result-distance]')).toHaveText('42,195 公尺');
 });
 
+test('結算頁可展開並切換訓練、傷害與營養衛教提醒', async ({ page }) => {
+  await startGame(page);
+  await page.evaluate(() => window.__GAME_TEST__?.completeGame());
+
+  const hub = page.getByTestId('education-hub');
+  const summary = page.locator('[data-education-hub] > summary');
+  await expect(hub).toBeVisible();
+  await expect(hub).not.toHaveAttribute('open', '');
+  await expect(summary).toContainText('衛教補給站');
+  await expect(summary).toContainText('本局先看：跑步營養');
+
+  await summary.click();
+  await expect(hub).toHaveAttribute('open', '');
+  await expect(page.locator('[data-education-topic]')).toHaveCount(3);
+  await expect(page.locator('[data-education-safety-alert]')).toContainText('緊急醫療');
+
+  const trainingButton = page.locator('[data-education-topic="training"]');
+  await trainingButton.click();
+  await expect(trainingButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-education-reminder-card]')).toHaveAttribute(
+    'data-topic',
+    'training',
+  );
+  await expect(page.locator('[data-reminder-title]')).not.toBeEmpty();
+  await expect(page.locator('[data-reminder-source]')).toHaveAttribute('target', '_blank');
+
+  const layout = await page.evaluate(() => {
+    const resultCard = document.querySelector<HTMLElement>('.result-card');
+    const topicButton = document.querySelector<HTMLElement>('[data-education-topic="training"]');
+    const summary = document.querySelector<HTMLElement>('[data-education-hub] > summary');
+    if (!resultCard || !topicButton || !summary) return null;
+    return {
+      noHorizontalOverflow: resultCard.scrollWidth <= resultCard.clientWidth + 1,
+      summaryHeight: summary.getBoundingClientRect().height,
+      topicButtonHeight: topicButton.getBoundingClientRect().height,
+    };
+  });
+  expect(layout).not.toBeNull();
+  expect(layout?.noHorizontalOverflow).toBe(true);
+  expect(layout?.summaryHeight ?? 0).toBeGreaterThanOrEqual(44);
+  expect(layout?.topicButtonHeight ?? 0).toBeGreaterThanOrEqual(44);
+});
+
 test('首頁可開啟與關閉跨裝置排行榜', async ({ page }) => {
   await page.getByTestId('leaderboard-home-button').click();
 
@@ -411,11 +480,16 @@ test('分享成績在支援時附上 PNG 成績卡', async ({ page }) => {
     Object.defineProperty(navigator, 'share', {
       configurable: true,
       value: async (data: ShareData) => {
+        const file = data.files?.[0];
+        const bitmap = file ? await createImageBitmap(file) : null;
         window.__SHARE_TEST__ = {
           text: data.text ?? '',
           fileCount: data.files?.length ?? 0,
-          fileType: data.files?.[0]?.type ?? '',
+          fileType: file?.type ?? '',
+          imageWidth: bitmap?.width ?? 0,
+          imageHeight: bitmap?.height ?? 0,
         };
+        bitmap?.close();
       },
     });
   });
@@ -423,8 +497,50 @@ test('分享成績在支援時附上 PNG 成績卡', async ({ page }) => {
   await page.locator('[data-share-button]').click();
   await expect(page.locator('[data-share-status]')).toHaveText('成績卡已分享！');
   expect(await page.evaluate(() => window.__SHARE_TEST__)).toEqual({
-    text: expect.stringContaining('阿跑'),
+    text: expect.stringContaining('排行榜第 1 名'),
     fileCount: 1,
     fileType: 'image/png',
+    imageWidth: 1_080,
+    imageHeight: 1_080,
   });
+});
+
+test('不支援圖片 Web Share 時仍可儲存 FB／IG 方形成績圖', async ({ page }) => {
+  await startGame(page);
+  await page.evaluate(() => window.__GAME_TEST__?.completeGame());
+  await page.locator('[data-score-name]').fill('分享跑者');
+  await page.locator('[data-score-submit]').click();
+  await expect(page.locator('[data-score-save-status]')).toContainText('第 1 名');
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'canShare', {
+      configurable: true,
+      value: () => false,
+    });
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async (data: ShareData) => {
+        window.__SHARE_TEST__ = {
+          text: data.text ?? '',
+          fileCount: data.files?.length ?? 0,
+          fileType: data.files?.[0]?.type ?? '',
+          imageWidth: 0,
+          imageHeight: 0,
+        };
+      },
+    });
+  });
+
+  await page.locator('[data-share-button]').click();
+  await expect(page.locator('[data-share-status]')).toContainText('儲存分享圖');
+  expect(await page.evaluate(() => window.__SHARE_TEST__)).toMatchObject({
+    text: expect.stringContaining('排行榜第 1 名'),
+    fileCount: 0,
+  });
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByTestId('download-share-card-button').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('marathon-finish-training-score.png');
+  await expect(page.locator('[data-share-status]')).toHaveText('1080×1080 成績分享圖已儲存！');
 });

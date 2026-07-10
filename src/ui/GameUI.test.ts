@@ -1,7 +1,41 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { EducationReminderCard } from '../shared/education';
 import { GameUI } from './GameUI';
 import type { LeaderboardRow } from './types';
+
+const TEST_EDUCATION_REMINDERS = [
+  {
+    id: 'training-test',
+    topic: 'training',
+    topicLabel: '馬拉松訓練',
+    icon: '📈',
+    title: '一次只加一點',
+    message: '訓練量應循序增加。',
+    action: '本週只調整一項。',
+    source: { label: '訓練來源', url: 'https://example.com/training' },
+  },
+  {
+    id: 'injury-test',
+    topic: 'injury',
+    topicLabel: '運動傷害',
+    icon: '🦵',
+    title: '疼痛加重要停下',
+    message: '功能下降時不要硬撐。',
+    action: '停止誘發症狀的活動。',
+    source: { label: '傷害來源', url: 'https://example.com/injury' },
+  },
+  {
+    id: 'nutrition-test',
+    topic: 'nutrition',
+    topicLabel: '跑步營養',
+    icon: '💧',
+    title: '補給先在訓練測試',
+    message: '需求會隨環境與時間改變。',
+    action: '記錄自己的腸胃反應。',
+    source: { label: '營養來源', url: 'https://example.com/nutrition' },
+  },
+] as const satisfies readonly EducationReminderCard[];
 
 describe('GameUI', () => {
   let ui: GameUI;
@@ -22,6 +56,8 @@ describe('GameUI', () => {
   afterEach(() => {
     ui?.destroy();
     Reflect.deleteProperty(navigator, 'clipboard');
+    Reflect.deleteProperty(navigator, 'share');
+    Reflect.deleteProperty(navigator, 'canShare');
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -40,6 +76,31 @@ describe('GameUI', () => {
     ).toEqual(['基礎期', '進階期', '正式比賽']);
     expect(document.querySelector('.route-flow')?.textContent).toContain('基礎期');
     expect(document.querySelector('.route-flow')?.textContent).toContain('正式比賽');
+  });
+
+  it('網頁最下方顯示製作者與安全的官方網站連結', () => {
+    ui = new GameUI({ root: '#app' });
+
+    const footer = document.querySelector<HTMLElement>('.medical-disclaimer');
+    const creatorLink = document.querySelector<HTMLAnchorElement>('[data-testid="creator-link"]');
+    expect(footer?.textContent).toContain('製作者');
+    expect(creatorLink?.textContent).toBe('運動醫學科 吳易澄醫師');
+    expect(creatorLink?.href).toBe('https://sportsmedicine.tw/');
+    expect(creatorLink?.target).toBe('_blank');
+    expect(creatorLink?.rel).toContain('noopener');
+    expect(creatorLink?.rel).toContain('noreferrer');
+
+    ui.showGameOver({
+      distanceMeters: 100,
+      score: 10,
+      highScore: 10,
+      failureReason: '測試',
+      educationMessage: '測試訊息',
+      educationAction: '測試行動',
+    });
+    expect(footer?.inert).toBe(true);
+    ui.showHome();
+    expect(footer?.inert).toBe(false);
   });
 
   it('在場景就緒後可由首頁開始並顯示 HUD', () => {
@@ -242,6 +303,87 @@ describe('GameUI', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('不作醫療診斷或個別建議'));
   });
 
+  it('結算衛教補給站預設收合，並可切換訓練、傷害與營養提醒', () => {
+    ui = new GameUI({ root: '#app' });
+    ui.showGameOver({
+      distanceMeters: 8_000,
+      score: 1_200,
+      highScore: 1_200,
+      failureReason: '運動傷害',
+      educationMessage: '疼痛加重時不要硬撐。',
+      educationAction: '先停止造成症狀的活動。',
+      educationReminders: TEST_EDUCATION_REMINDERS,
+      educationFocusTopic: 'injury',
+      educationSafetyAlert: {
+        title: '需要立即停下的警訊',
+        message: '胸痛或昏倒時立即停止並求助。',
+      },
+      outcome: 'stopped',
+      stageNumber: 2,
+      stageName: '進階期',
+    });
+
+    const hub = document.querySelector<HTMLDetailsElement>('[data-education-hub]');
+    const topicButtons = document.querySelectorAll<HTMLButtonElement>('[data-education-topic]');
+    expect(hub?.hidden).toBe(false);
+    expect(hub?.open).toBe(false);
+    expect(topicButtons).toHaveLength(3);
+    expect(
+      document.querySelector('[data-education-topic="injury"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(document.querySelector('[data-reminder-title]')?.textContent).toBe('疼痛加重要停下');
+    expect(document.querySelector('[data-education-hub-teaser]')?.textContent).toContain(
+      '本局先看：運動傷害',
+    );
+    expect(document.querySelector('[data-safety-alert-message]')?.textContent).toContain('胸痛');
+    expect(
+      document.querySelector('[data-testid="game-over-screen"]')?.getAttribute('aria-describedby'),
+    ).toContain('game-over-disclaimer');
+    expect(document.querySelector('#game-over-disclaimer')?.textContent).toContain(
+      '不取代醫療診斷',
+    );
+
+    document.querySelector<HTMLButtonElement>('[data-education-topic="nutrition"]')?.click();
+    expect(
+      document.querySelector('[data-education-reminder-card]')?.getAttribute('data-topic'),
+    ).toBe('nutrition');
+    expect(document.querySelector('[data-reminder-title]')?.textContent).toBe('補給先在訓練測試');
+    expect(document.querySelector('[data-reminder-source]')?.getAttribute('href')).toBe(
+      'https://example.com/nutrition',
+    );
+    expect(
+      document.querySelector('[data-education-topic="nutrition"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(document.querySelector('[data-education-hub-teaser]')?.textContent).toContain(
+      '本局先看：運動傷害',
+    );
+  });
+
+  it('衛教動態文字只當作純文字，且不接受非 HTTPS 來源', () => {
+    ui = new GameUI({ root: '#app' });
+    const unsafeReminder: EducationReminderCard = {
+      ...TEST_EDUCATION_REMINDERS[0],
+      title: '<img src=x onerror=alert(1)>',
+      source: { label: '不安全來源', url: 'javascript:alert(1)' },
+    };
+    ui.showGameOver({
+      distanceMeters: 100,
+      score: 10,
+      highScore: 10,
+      failureReason: '測試',
+      educationMessage: '測試訊息',
+      educationAction: '測試行動',
+      educationReminders: [unsafeReminder],
+      educationFocusTopic: 'training',
+    });
+
+    expect(document.querySelector('[data-reminder-title]')?.textContent).toBe(
+      '<img src=x onerror=alert(1)>',
+    );
+    expect(document.querySelector('[data-education-reminder-card] img')).toBeNull();
+    expect(document.querySelector<HTMLAnchorElement>('[data-reminder-source]')?.hidden).toBe(true);
+  });
+
   it('完賽結算有獨立標題、完賽成果與成功分享文案', async () => {
     const onShare = vi.fn();
     const writeText = mockClipboard();
@@ -312,8 +454,9 @@ describe('GameUI', () => {
     expect(document.querySelector('[data-leaderboard-empty] img')).toBeNull();
   });
 
-  it('暱稱必填且最多 12 字，可回報已儲存、未進榜與儲存失敗', () => {
+  it('暱稱必填且最多 12 字，可回報已儲存、未進榜與儲存失敗', async () => {
     const onScoreSubmit = vi.fn();
+    const writeText = mockClipboard();
     ui = new GameUI({ root: '#app', callbacks: { onScoreSubmit } });
     ui.showGameOver({
       distanceMeters: 1_200,
@@ -330,6 +473,7 @@ describe('GameUI', () => {
     const input = document.querySelector<HTMLInputElement>('[data-score-name]');
     const submit = document.querySelector<HTMLButtonElement>('[data-score-submit]');
     const status = document.querySelector<HTMLElement>('[data-score-save-status]');
+    const shareButton = document.querySelector<HTMLButtonElement>('[data-share-button]');
     expect(input?.maxLength).toBe(12);
 
     submit?.click();
@@ -344,6 +488,11 @@ describe('GameUI', () => {
     ui.setScoreSaved(3, '<b>跑者</b>');
     expect(status?.textContent).toContain('第 3 名');
     expect(document.querySelector('[data-score-form] b')).toBeNull();
+    shareButton?.click();
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining('排行榜第 3 名')),
+    );
+    await vi.waitFor(() => expect(shareButton?.disabled).toBe(false));
 
     ui.resetScoreSubmission();
     expect(input?.value).toBe('');
@@ -363,5 +512,76 @@ describe('GameUI', () => {
     expect(submit?.textContent).toBe('已送出');
     expect(submit?.disabled).toBe(true);
     expect(status?.textContent).toBe('成績已通過驗證並儲存，但目前未進入前 10 名。');
+    writeText.mockClear();
+    shareButton?.click();
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        expect.stringContaining('成績已驗證・目前未進前 10 名'),
+      ),
+    );
+  });
+
+  it('排行榜名次在 Canvas 產生期間更新時，分享會等待並使用最新版內容', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Chrome');
+    const context = createShareCanvasContextStub();
+    const blobCallbacks: BlobCallback[] = [];
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => context);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
+      blobCallbacks.push(callback);
+    });
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'canShare', {
+      configurable: true,
+      value: (data: ShareData) => Boolean(data.files?.length),
+    });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share });
+
+    ui = new GameUI({ root: '#app' });
+    ui.showGameOver({
+      distanceMeters: 42_195,
+      score: 8_000,
+      highScore: 8_000,
+      failureReason: '完成三關',
+      educationMessage: '穩定前進。',
+      educationAction: '保留恢復時間。',
+      outcome: 'completed',
+      stageNumber: 3,
+      stageName: '正式比賽',
+    });
+
+    document.querySelector<HTMLButtonElement>('[data-share-button]')?.click();
+    ui.setScoreSaved(2, '名次跑者');
+    expect(blobCallbacks).toHaveLength(2);
+
+    blobCallbacks[0]?.(new Blob(['old'], { type: 'image/png' }));
+    await Promise.resolve();
+    expect(share).not.toHaveBeenCalled();
+    blobCallbacks[1]?.(new Blob(['latest'], { type: 'image/png' }));
+
+    await vi.waitFor(() => expect(share).toHaveBeenCalledOnce());
+    expect(share.mock.calls[0]?.[0]).toMatchObject({
+      text: expect.stringContaining('排行榜第 2 名'),
+      files: [expect.any(File)],
+    });
   });
 });
+
+function createShareCanvasContextStub(): CanvasRenderingContext2D {
+  const gradient = { addColorStop: vi.fn() } as unknown as CanvasGradient;
+  return {
+    createLinearGradient: vi.fn(() => gradient),
+    fillRect: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    beginPath: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    quadraticCurveTo: vi.fn(),
+    closePath: vi.fn(),
+    stroke: vi.fn(),
+    fillText: vi.fn(),
+    measureText: vi.fn((text: string) => ({ width: text.length * 24 }) as TextMetrics),
+  } as unknown as CanvasRenderingContext2D;
+}

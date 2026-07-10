@@ -1,5 +1,10 @@
 import { GAME_CONFIG, type GameConfig } from '../config';
-import { selectEducationMessage } from '../data';
+import {
+  EDUCATION_SAFETY_ALERT,
+  selectEducationFocusTopic,
+  selectEducationMessage,
+  selectEducationReminders,
+} from '../data';
 import type {
   GameOverReason,
   GameOverResult,
@@ -55,6 +60,14 @@ export function createGameOverResult({
     gameOverReason: reason,
     outcome,
   });
+  const reminderSelection = {
+    dominantObstacle,
+    gameOverReason: reason,
+    outcome,
+    stageId,
+    collectedRecoveryItems: Math.floor(normalizeNonNegative(collectedRecoveryItems)),
+  } as const;
+  const educationReminders = selectEducationReminders(reminderSelection);
 
   return {
     outcome,
@@ -71,5 +84,8 @@ export function createGameOverResult({
     isNewHighScore,
     educationMessage: educationMessage.text,
     educationAction: educationMessage.action,
+    educationReminders,
+    educationFocusTopic: selectEducationFocusTopic(reminderSelection),
+    educationSafetyAlert: EDUCATION_SAFETY_ALERT,
   };
 }

@@ -11,19 +11,21 @@ const COMPLETED_RESULT: ShareCardInput = {
   distanceMeters: 12_800,
   score: 12_345,
   outcome: 'completed',
+  leaderboardRank: 3,
   stageNumber: 3,
   totalStages: 3,
   stageName: '正式比賽',
 };
 
 describe('分享成績文字', () => {
-  it('完賽時顯示 42.195 公里、暱稱、分數與免責', () => {
+  it('完賽時顯示 42.195 公里、暱稱、分數、排行榜名次與免責', () => {
     const text = buildShareText(COMPLETED_RESULT);
 
     expect(text).toContain('慢跑小明');
     expect(text).toContain('馬拉松完賽訓練');
     expect(text).toContain('42.195 公里');
     expect(text).toContain('分數 12,345｜完賽');
+    expect(text).toContain('排行榜第 3 名');
     expect(text).toContain('不作醫療診斷或個別建議');
   });
 
@@ -61,6 +63,33 @@ describe('分享成績文字', () => {
     expect(text).toContain('0 公尺');
     expect(text).toContain('分數 0');
   });
+
+  it('排行榜名次清楚區分尚未送出與已驗證但未進前 10 名', () => {
+    expect(
+      buildShareText({
+        ...COMPLETED_RESULT,
+        leaderboardRank: undefined,
+      }),
+    ).toContain('排行榜：尚未送出');
+    expect(
+      buildShareText({
+        ...COMPLETED_RESULT,
+        leaderboardRank: null,
+      }),
+    ).toContain('成績已驗證・目前未進前 10 名');
+  });
+
+  it('極端遊戲數值會限制在分享卡可讀範圍', () => {
+    const text = buildShareText({
+      ...COMPLETED_RESULT,
+      score: Number.MAX_VALUE,
+      distanceMeters: Number.MAX_VALUE,
+      leaderboardRank: Number.MAX_VALUE,
+    });
+
+    expect(text).toContain('分數 999,999,999');
+    expect(text).toContain('排行榜第 999,999 名');
+  });
 });
 
 describe('分享成績卡 PNG', () => {
@@ -80,7 +109,7 @@ describe('分享成績卡 PNG', () => {
     await expect(createShareCardFile(COMPLETED_RESULT)).resolves.toBeNull();
   });
 
-  it('產生 1200×630 的 PNG File', async () => {
+  it('產生適用 Facebook 與 Instagram 的 1080×1080 PNG File，並繪出名次', async () => {
     const context = createCanvasContextStub();
     let renderedCanvas: HTMLCanvasElement | undefined;
     const originalCreateElement = document.createElement.bind(document);
@@ -101,6 +130,16 @@ describe('分享成績卡 PNG', () => {
     expect(file).toBeInstanceOf(File);
     expect(file?.name).toBe('marathon-finish-training-score.png');
     expect(file?.type).toBe('image/png');
+    expect(context.fillText).toHaveBeenCalledWith('#3', expect.any(Number), expect.any(Number));
+
+    await createShareCardFile({ ...COMPLETED_RESULT, leaderboardRank: null });
+    await createShareCardFile({ ...COMPLETED_RESULT, leaderboardRank: undefined });
+    expect(context.fillText).toHaveBeenCalledWith(
+      'TOP 10 外',
+      expect.any(Number),
+      expect.any(Number),
+    );
+    expect(context.fillText).toHaveBeenCalledWith('待驗證', expect.any(Number), expect.any(Number));
   });
 });
 

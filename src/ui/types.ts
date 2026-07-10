@@ -1,3 +1,9 @@
+import type {
+  EducationReminderCard,
+  EducationSafetyAlert,
+  EducationTopic,
+} from '../shared/education';
+
 /**
  * DOM UI contracts. These types deliberately avoid importing Phaser so the
  * presentation layer can be tested or replaced independently of the game.
@@ -52,6 +58,9 @@ export interface GameOverSummary {
   failureReason: string;
   educationMessage: string;
   educationAction: string;
+  educationReminders?: readonly EducationReminderCard[];
+  educationFocusTopic?: EducationTopic;
+  educationSafetyAlert?: EducationSafetyAlert;
   /** 未提供時，UI 會依 completed／stopped 自動建立繁中分享文案。 */
   shareText?: string;
   isNewHighScore?: boolean;
@@ -78,7 +87,7 @@ export interface LeaderboardRow {
 export type UiSnapshot = HUDState;
 export type UiResult = GameOverSummary;
 
-export type ShareMethod = 'web-share' | 'clipboard' | 'cancelled' | 'unavailable';
+export type ShareMethod = 'web-share' | 'download' | 'clipboard' | 'cancelled' | 'unavailable';
 
 export interface GameUICallbacks {
   onStart: () => void;
