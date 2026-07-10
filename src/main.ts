@@ -10,9 +10,17 @@ import {
 import { createGame } from './game/createGame';
 import { GAME_EVENTS, gameEventBus, type SoundCue } from './game/events/GameEventBus';
 import { GameScene } from './game/scenes/GameScene';
-import { addLeaderboardEntry, readLeaderboard } from './game/systems';
 import type { GameOverResult, HudSnapshot, MarathonStageId, PaceMode } from './game/types';
 import { SoundManager, type MusicPlaybackState } from './game/utils/SoundManager';
+import {
+  LeaderboardApiClient,
+  LeaderboardApiError,
+  type RunSession,
+} from './services/leaderboardApi';
+import {
+  COMPLETION_CHECKPOINT_MIN_GAP_SECONDS,
+  getTotalMarathonDurationSeconds,
+} from './shared/networkLeaderboardRules';
 import { GameUI, type HUDStatus } from './ui/GameUI';
 import type { LeaderboardRow, MarathonStageNumber, PaceTone } from './ui/types';
 
@@ -29,9 +37,21 @@ declare global {
 }
 
 const soundManager = new SoundManager();
+const leaderboardApi = new LeaderboardApiClient();
+const CHECKPOINT_INTERVAL_SECONDS = 10;
+const PERIODIC_CHECKPOINT_CUTOFF_SECONDS =
+  getTotalMarathonDurationSeconds() - COMPLETION_CHECKPOINT_MIN_GAP_SECONDS;
 let sceneReady = false;
 let latestResult: GameOverResult | null = null;
 let currentLeaderboardEntryId: string | undefined;
+let currentRunSession: RunSession | null = null;
+let runSessionPromise: Promise<RunSession | null> | null = null;
+let networkRunGeneration = 0;
+let nextCheckpointSeconds = CHECKPOINT_INTERVAL_SECONDS;
+let lastCheckpointElapsedSeconds = 0;
+let checkpointQueue: Promise<void> = Promise.resolve();
+let networkRunError: string | null = null;
+let leaderboardRequestGeneration = 0;
 
 const getScene = (): GameScene | null => {
   const scene = game.scene.getScene(GameScene.KEY);
@@ -47,8 +67,12 @@ const ui = new GameUI({
       latestResult = null;
       currentLeaderboardEntryId = undefined;
       const scene = getScene();
-      if (scene) scene.startRun();
-      else ui.showHome();
+      if (scene) {
+        prepareNetworkRun();
+        scene.startRun();
+      } else {
+        ui.showHome();
+      }
     },
     onJump: () => getScene()?.requestJump(),
     onPause: () => getScene()?.togglePause(true),
@@ -60,18 +84,23 @@ const ui = new GameUI({
       void soundManager.unlock().catch(() => undefined);
       latestResult = null;
       currentLeaderboardEntryId = undefined;
-      getScene()?.startRun();
+      const scene = getScene();
+      if (scene) {
+        prepareNetworkRun();
+        scene.startRun();
+      }
     },
     onHome: () => {
       soundManager.stopMusic();
+      abandonNetworkRun();
       getScene()?.returnHome();
     },
     onSoundChange: (enabled) => {
       soundManager.setEnabled(enabled);
       getScene()?.setSoundEnabled(enabled);
     },
-    onLeaderboardOpen: () => renderLeaderboard(),
-    onScoreSubmit: (name) => saveLatestResult(name),
+    onLeaderboardOpen: () => void renderLeaderboard(),
+    onScoreSubmit: (name) => void saveLatestResult(name),
     onShare: () => undefined,
   },
 });
@@ -130,6 +159,7 @@ gameEventBus.on(GAME_EVENTS.hudUpdated, (snapshot: HudSnapshot) => {
     paceTone: pace.tone,
     statuses: createHudStatuses(snapshot),
   });
+  queueNetworkCheckpoint(snapshot);
 });
 
 gameEventBus.on(GAME_EVENTS.gameOver, (result: GameOverResult) => {
@@ -188,7 +218,8 @@ const handleVisibilityChange = (): void => {
 };
 document.addEventListener('visibilitychange', handleVisibilityChange);
 
-if (new URLSearchParams(window.location.search).get('e2e') === '1') {
+// 測試控制介面只存在本機開發建置，正式站即使加入 ?e2e=1 也不會暴露。
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e') === '1') {
   window.__GAME_TEST__ = {
     endGame: (reason = 'energy') => getScene()?.forceGameOver(reason),
     completeGame: () => getScene()?.forceComplete(),
@@ -307,37 +338,168 @@ function createPaceStatus(mode: PaceMode, remainingSeconds: number): HUDStatus {
   };
 }
 
-function saveLatestResult(name: string): void {
+async function saveLatestResult(name: string): Promise<void> {
   if (latestResult === null) {
     ui.setScoreSaveError('目前沒有可儲存的成績。');
     return;
   }
 
-  const result = addLeaderboardEntry({
-    name,
-    score: latestResult.score,
-    distanceMeters: latestResult.distanceMeters,
-    outcome: latestResult.outcome,
-    stageId: latestResult.stageId,
-  });
-
-  if (!result.persisted) {
-    ui.setScoreSaveError('瀏覽器目前無法儲存成績，請檢查網站儲存權限後再試。');
+  const resultSnapshot = latestResult;
+  const generation = networkRunGeneration;
+  const session = currentRunSession ?? (await runSessionPromise);
+  if (session === null || generation !== networkRunGeneration) {
+    ui.setScoreSaveError(
+      networkRunError ?? '這一局未能連上驗證伺服器，仍可遊玩，但無法送上網路排行榜。',
+    );
     return;
   }
 
-  currentLeaderboardEntryId = result.rank === null ? undefined : result.entry.id;
-  ui.setScoreSaved(result.rank, result.entry.name);
-  ui.setSharePlayerName(result.entry.name);
+  try {
+    await checkpointQueue;
+    await submitFinalCheckpoint(session, resultSnapshot, generation);
+
+    const response = await leaderboardApi.finishRun(session.id, {
+      token: session.token,
+      name,
+      elapsedSeconds: resultSnapshot.elapsedSeconds,
+      collectedRecoveryItems: resultSnapshot.collectedRecoveryItems,
+      outcome: resultSnapshot.outcome,
+      stageId: resultSnapshot.stageId,
+    });
+
+    if (generation !== networkRunGeneration) return;
+    currentLeaderboardEntryId = response.rank === null ? undefined : response.entry.id;
+    currentRunSession = null;
+    runSessionPromise = null;
+    ui.setScoreSaved(response.rank, response.entry.name);
+    ui.setSharePlayerName(response.entry.name);
+  } catch (error) {
+    ui.setScoreSaveError(getNetworkErrorMessage(error));
+  }
 }
 
-function renderLeaderboard(): void {
-  const rows: LeaderboardRow[] = readLeaderboard().map((entry) => ({
-    id: entry.id,
-    name: entry.name,
-    score: entry.score,
-    distanceMeters: entry.distanceMeters,
-    outcome: entry.outcome,
-  }));
-  ui.showLeaderboard(rows, currentLeaderboardEntryId);
+async function renderLeaderboard(): Promise<void> {
+  const requestGeneration = ++leaderboardRequestGeneration;
+  ui.setLeaderboardLoading();
+
+  try {
+    const response = await leaderboardApi.getLeaderboard();
+    if (requestGeneration !== leaderboardRequestGeneration || !ui.isLeaderboardOpen()) return;
+
+    const rows: LeaderboardRow[] = response.entries.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      score: entry.score,
+      distanceMeters: entry.distanceMeters,
+      outcome: entry.outcome,
+    }));
+    ui.showLeaderboard(rows, currentLeaderboardEntryId);
+  } catch (error) {
+    if (requestGeneration !== leaderboardRequestGeneration || !ui.isLeaderboardOpen()) return;
+    ui.setLeaderboardError(getNetworkErrorMessage(error));
+  }
+}
+
+function prepareNetworkRun(): void {
+  const generation = ++networkRunGeneration;
+  currentRunSession = null;
+  networkRunError = null;
+  nextCheckpointSeconds = CHECKPOINT_INTERVAL_SECONDS;
+  lastCheckpointElapsedSeconds = 0;
+  checkpointQueue = Promise.resolve();
+
+  runSessionPromise = leaderboardApi
+    .startRun()
+    .then(({ run }) => {
+      if (generation !== networkRunGeneration) return null;
+      currentRunSession = run;
+      return run;
+    })
+    .catch((error: unknown) => {
+      if (generation === networkRunGeneration) {
+        networkRunError = getNetworkErrorMessage(error);
+      }
+      return null;
+    });
+}
+
+function abandonNetworkRun(): void {
+  networkRunGeneration += 1;
+  currentRunSession = null;
+  runSessionPromise = null;
+  checkpointQueue = Promise.resolve();
+}
+
+function queueNetworkCheckpoint(snapshot: HudSnapshot): void {
+  if (
+    snapshot.isPaused ||
+    snapshot.elapsedSeconds >= PERIODIC_CHECKPOINT_CUTOFF_SECONDS ||
+    snapshot.elapsedSeconds + 0.01 < nextCheckpointSeconds
+  ) {
+    return;
+  }
+
+  while (nextCheckpointSeconds <= snapshot.elapsedSeconds + 0.01) {
+    nextCheckpointSeconds += CHECKPOINT_INTERVAL_SECONDS;
+  }
+
+  const generation = networkRunGeneration;
+  const elapsedSeconds = snapshot.elapsedSeconds;
+  const collectedRecoveryItems = snapshot.collectedRecoveryItems;
+  checkpointQueue = checkpointQueue
+    .then(async () => {
+      if (generation !== networkRunGeneration) return;
+      const session = currentRunSession ?? (await runSessionPromise);
+      if (
+        session === null ||
+        generation !== networkRunGeneration ||
+        elapsedSeconds <= lastCheckpointElapsedSeconds
+      ) {
+        return;
+      }
+
+      await leaderboardApi.submitCheckpoint(session.id, {
+        token: session.token,
+        elapsedSeconds,
+        collectedRecoveryItems,
+      });
+      if (generation === networkRunGeneration) {
+        lastCheckpointElapsedSeconds = elapsedSeconds;
+      }
+    })
+    .catch((error: unknown) => {
+      if (generation === networkRunGeneration) {
+        networkRunError = getNetworkErrorMessage(error);
+      }
+    });
+}
+
+async function submitFinalCheckpoint(
+  session: RunSession,
+  result: GameOverResult,
+  generation: number,
+): Promise<void> {
+  // 完賽保留遊戲中最後一筆（通常約 70 秒）檢查點，讓伺服器確認
+  // 之後仍經過合理遊戲時間；中途停止才補送當下最終進度。
+  if (
+    result.outcome === 'completed' ||
+    generation !== networkRunGeneration ||
+    result.elapsedSeconds <= lastCheckpointElapsedSeconds
+  ) {
+    return;
+  }
+
+  await leaderboardApi.submitCheckpoint(session.id, {
+    token: session.token,
+    elapsedSeconds: result.elapsedSeconds,
+    collectedRecoveryItems: result.collectedRecoveryItems,
+  });
+  if (generation === networkRunGeneration) {
+    lastCheckpointElapsedSeconds = result.elapsedSeconds;
+  }
+}
+
+function getNetworkErrorMessage(error: unknown): string {
+  if (error instanceof LeaderboardApiError) return error.message;
+  return '排行榜服務暫時無法使用，請稍後再試。';
 }

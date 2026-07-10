@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { calculateValidatedScore } from '../../shared/networkLeaderboardRules';
 import { GAME_CONFIG, MARATHON_CONFIG } from '../config';
 import { MARATHON_STAGE_ENTRY_COPY } from '../data';
 import { FinishGate } from '../entities/FinishGate';
@@ -552,7 +553,9 @@ export class GameScene extends Phaser.Scene {
     this.tutorialText.setAlpha(0);
 
     const dominantObstacle = completed ? null : getDominantObstacle(this.impactCounts);
-    const score = Math.round(this.progress.score);
+    const elapsedSeconds = this.marathonState.elapsedSeconds;
+    const collectedRecoveryItems = this.progress.collectedRecoveryItems;
+    const score = calculateValidatedScore(elapsedSeconds, collectedRecoveryItems);
     const previousHighScore = readHighScore();
     const highScore = updateHighScore(score);
     const result: GameOverResult = createGameOverResult({
@@ -564,6 +567,8 @@ export class GameScene extends Phaser.Scene {
       dominantObstacle,
       distanceMeters: this.getJourneyDistanceMeters(completed ? 1 : undefined),
       score,
+      elapsedSeconds,
+      collectedRecoveryItems,
       highScore,
       isNewHighScore: score > previousHighScore,
     });
@@ -575,8 +580,12 @@ export class GameScene extends Phaser.Scene {
   private emitHud(): void {
     const stage = this.marathonState.stage;
     const snapshot: HudSnapshot = {
+      elapsedSeconds: this.marathonState.elapsedSeconds,
       distanceMeters: this.getJourneyDistanceMeters(),
-      score: Math.round(this.progress.score),
+      score: calculateValidatedScore(
+        this.marathonState.elapsedSeconds,
+        this.progress.collectedRecoveryItems,
+      ),
       energy: Math.round(this.marathonState.vitals.energy),
       injuryRisk: Math.round(this.marathonState.vitals.injuryRisk),
       speed: Math.round(this.progress.speed),
@@ -588,6 +597,7 @@ export class GameScene extends Phaser.Scene {
       statusEffects: this.marathonState.statusEffects,
       isPaused: this.runState === 'paused',
       isSoundEnabled: this.soundEnabled,
+      collectedRecoveryItems: this.progress.collectedRecoveryItems,
     };
     gameEventBus.emit(GAME_EVENTS.hudUpdated, snapshot);
   }

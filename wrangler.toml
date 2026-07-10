@@ -1,0 +1,13 @@
+name = "marathongame"
+compatibility_date = "2026-07-10"
+pages_build_output_dir = "./dist"
+
+[vars]
+ALLOWED_ORIGIN = "https://marathongame.pages.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "marathongame-leaderboard"
+database_id = "010e7225-ff33-4267-945f-dfc68932cdd4"
+preview_database_id = "DB"
+migrations_dir = "migrations"

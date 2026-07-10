@@ -63,8 +63,8 @@ export interface GameOverSummary {
 }
 
 /**
- * 已由儲存層排序的單筆排行榜資料。UI 只顯示傳入順序的前 10 筆，
- * 不負責讀寫 localStorage。
+ * 已由伺服器排序的單筆排行榜資料。UI 只顯示傳入順序的前 10 筆，
+ * 不負責網路請求或資料驗證。
  */
 export interface LeaderboardRow {
   id: string;
@@ -88,7 +88,7 @@ export interface GameUICallbacks {
   onRestart: () => void;
   onHome: () => void;
   onSoundChange: (enabled: boolean) => void;
-  /** 請控制層讀取本機資料後呼叫 showLeaderboard。 */
+  /** 請控制層讀取網路排行榜後呼叫 showLeaderboard。 */
   onLeaderboardOpen: () => void;
   /** 暱稱已去除前後空白，且最多 12 個 UTF-16 code units。 */
   onScoreSubmit: (name: string) => void;

@@ -1383,6 +1383,18 @@ input:focus-visible {
   line-height: 1.4;
 }
 
+.leaderboard-empty[data-state='loading'] {
+  border-style: solid;
+  color: #315e70;
+  background: #eef8fb;
+}
+
+.leaderboard-empty[data-state='error'] {
+  border-color: #e7b5a9;
+  color: #7d3d3b;
+  background: #fff5f2;
+}
+
 .medical-disclaimer {
   display: flex;
   min-height: 2.5rem;

@@ -108,6 +108,7 @@ export interface GameProgress {
 }
 
 export interface HudSnapshot {
+  elapsedSeconds: number;
   distanceMeters: number;
   score: number;
   energy: number;
@@ -121,6 +122,7 @@ export interface HudSnapshot {
   statusEffects: GameStatusEffects;
   isPaused: boolean;
   isSoundEnabled: boolean;
+  collectedRecoveryItems: number;
 }
 
 export interface GameOverResult {
@@ -132,6 +134,8 @@ export interface GameOverResult {
   dominantObstacle: ObstacleType | null;
   distanceMeters: number;
   score: number;
+  elapsedSeconds: number;
+  collectedRecoveryItems: number;
   highScore: number;
   isNewHighScore: boolean;
   educationMessage: string;

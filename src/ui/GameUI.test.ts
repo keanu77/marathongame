@@ -54,7 +54,7 @@ describe('GameUI', () => {
     expect(document.querySelector<HTMLElement>('.hud-layer')?.hidden).toBe(false);
   });
 
-  it('可從首頁與結算開啟本機排行榜並關閉', () => {
+  it('可從首頁與結算開啟跨裝置排行榜並關閉', () => {
     const onLeaderboardOpen = vi.fn();
     ui = new GameUI({ root: '#app', callbacks: { onLeaderboardOpen } });
 
@@ -63,15 +63,17 @@ describe('GameUI', () => {
     const modal = document.querySelector<HTMLElement>('[data-testid="leaderboard-modal"]');
     expect(onLeaderboardOpen).toHaveBeenCalledOnce();
     expect(modal?.hidden).toBe(false);
+    expect(ui.isLeaderboardOpen()).toBe(true);
     expect(document.querySelector('[data-leaderboard-empty]')?.textContent).toContain(
-      '還沒有本機成績',
+      '還沒有網路成績',
     );
     expect(document.querySelector('.leaderboard-device-note')?.textContent).toContain(
-      '只儲存在此裝置與瀏覽器',
+      '通過伺服器規則檢查',
     );
 
     document.querySelector<HTMLButtonElement>('[data-leaderboard-close]')?.click();
     expect(modal?.hidden).toBe(true);
+    expect(ui.isLeaderboardOpen()).toBe(false);
 
     ui.showGameOver({
       distanceMeters: 800,
@@ -255,6 +257,21 @@ describe('GameUI', () => {
     expect(document.querySelector<HTMLElement>('[data-leaderboard-table]')?.hidden).toBe(true);
   });
 
+  it('排行榜可顯示同步中與安全的網路錯誤訊息', () => {
+    ui = new GameUI({ root: '#app' });
+
+    ui.setLeaderboardLoading();
+    expect(document.querySelector('[data-leaderboard-empty]')?.textContent).toContain(
+      '正在同步排行榜',
+    );
+
+    ui.setLeaderboardError('<img src=x onerror=alert(1)>');
+    expect(document.querySelector('[data-leaderboard-empty]')?.textContent).toContain(
+      '<img src=x onerror=alert(1)>',
+    );
+    expect(document.querySelector('[data-leaderboard-empty] img')).toBeNull();
+  });
+
   it('暱稱必填且最多 12 字，可回報已儲存、未進榜與儲存失敗', () => {
     const onScoreSubmit = vi.fn();
     ui = new GameUI({ root: '#app', callbacks: { onScoreSubmit } });
@@ -303,8 +320,8 @@ describe('GameUI', () => {
     expect(document.querySelector('[data-score-save-status] b')).toBeNull();
 
     ui.setScoreSaved(null, '未進榜跑者');
-    expect(submit?.textContent).toBe('未進榜');
+    expect(submit?.textContent).toBe('已送出');
     expect(submit?.disabled).toBe(true);
-    expect(status?.textContent).toBe('本次成績未進前 10，未列入排行榜。');
+    expect(status?.textContent).toBe('成績已通過驗證並儲存，但目前未進入前 10 名。');
   });
 });

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 import type { MusicPlaybackState } from '../src/game/utils/SoundManager';
 
@@ -23,6 +23,67 @@ const gameCanvas = (page: Page) => page.getByTestId('game-canvas');
 
 const browserErrors = new WeakMap<Page, string[]>();
 
+interface MockLeaderboardEntry {
+  id: string;
+  name: string;
+  score: number;
+  distanceMeters: number;
+  outcome: 'completed' | 'stopped';
+  stageId: 'base' | 'build' | 'race';
+}
+
+function fulfillJson(route: Route, body: unknown, status = 200) {
+  return route.fulfill({
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  });
+}
+
+async function mockLeaderboardApi(page: Page, entries: MockLeaderboardEntry[]) {
+  let runSequence = 0;
+
+  await page.route('**/api/runs', async (route) => {
+    const runId = `e2e-run-${++runSequence}`;
+    await fulfillJson(route, {
+      run: {
+        id: runId,
+        token: `e2e-token-${runId}`,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        rulesVersion: 'e2e-v1',
+      },
+    });
+  });
+
+  await page.route('**/api/runs/*/checkpoint', async (route) => {
+    await fulfillJson(route, { accepted: true });
+  });
+
+  await page.route('**/api/runs/*/finish', async (route) => {
+    const body = route.request().postDataJSON() as { name?: unknown };
+    const runId = new URL(route.request().url()).pathname.split('/')[3] ?? 'e2e-run';
+    const entry: MockLeaderboardEntry = {
+      id: `entry-${runId}`,
+      name:
+        typeof body.name === 'string' && body.name.trim() !== '' ? body.name.trim() : '匿名跑者',
+      score: 42_195,
+      distanceMeters: 42_195,
+      outcome: 'completed',
+      stageId: 'race',
+    };
+
+    entries.unshift(entry);
+    await fulfillJson(route, { entry, rank: 1 });
+  });
+
+  await page.route('**/api/leaderboard', async (route) => {
+    await fulfillJson(route, {
+      entries,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+}
+
 async function startGame(page: Page) {
   await page.getByTestId('start-button').click();
   await expect(gameCanvas(page)).toBeVisible();
@@ -30,11 +91,13 @@ async function startGame(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
+  const entries: MockLeaderboardEntry[] = [];
   browserErrors.set(page, errors);
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
   });
+  await mockLeaderboardApi(page, entries);
   await page.goto('/?e2e=1');
 });
 
@@ -154,22 +217,61 @@ test('完成三關後顯示 42.195 公里完賽結算', async ({ page }) => {
   await expect(page.locator('[data-result-distance]')).toHaveText('42,195 公尺');
 });
 
-test('首頁可開啟與關閉本機排行榜', async ({ page }) => {
+test('首頁可開啟與關閉跨裝置排行榜', async ({ page }) => {
   await page.getByTestId('leaderboard-home-button').click();
 
   await expect(page.getByTestId('leaderboard-modal')).toBeVisible();
-  await expect(page.locator('[data-leaderboard-empty]')).toContainText('還沒有本機成績');
+  await expect(page.getByRole('heading', { name: '跨裝置排行榜' })).toBeVisible();
+  await expect(page.locator('[data-leaderboard-empty]')).toContainText('還沒有網路成績');
   await page.locator('[data-leaderboard-close]').click();
   await expect(page.getByTestId('leaderboard-modal')).toBeHidden();
   await expect(page.getByTestId('leaderboard-home-button')).toBeFocused();
 });
 
-test('結算成績可加入前 10 名並在重新載入後保留', async ({ page }) => {
+test('排行榜載入錯誤時顯示可理解的同步狀態', async ({ page }) => {
+  await page.route(
+    '**/api/leaderboard',
+    async (route) => {
+      await fulfillJson(route, {
+        entries: 'temporarily-unavailable',
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    { times: 1 },
+  );
+
+  await page.getByTestId('leaderboard-home-button').click();
+
+  const errorState = page.locator('[data-leaderboard-empty][data-state="error"]');
+  await expect(errorState).toBeVisible();
+  await expect(errorState).toContainText('暫時無法同步');
+});
+
+test('關閉同步中的排行榜後不會被慢速回應重新開啟', async ({ page }) => {
+  await page.route(
+    '**/api/leaderboard',
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await fulfillJson(route, { entries: [], updatedAt: new Date().toISOString() });
+    },
+    { times: 1 },
+  );
+
+  await page.getByTestId('leaderboard-home-button').click();
+  await expect(page.locator('[data-leaderboard-empty]')).toContainText('正在同步排行榜');
+  await page.locator('[data-leaderboard-close]').click();
+  await page.waitForTimeout(450);
+
+  await expect(page.getByTestId('leaderboard-modal')).toBeHidden();
+});
+
+test('結算成績經伺服器驗證後可跨重新載入保留', async ({ page }) => {
   await startGame(page);
   await page.evaluate(() => window.__GAME_TEST__?.completeGame());
 
   await page.locator('[data-score-name]').fill('慢跑小明');
   await page.locator('[data-score-submit]').click();
+  await expect(page.locator('[data-score-save-status]')).toContainText('通過伺服器驗證');
   await expect(page.locator('[data-score-save-status]')).toContainText('第 1 名');
 
   await page.getByTestId('leaderboard-result-button').click();
@@ -178,6 +280,7 @@ test('結算成績可加入前 10 名並在重新載入後保留', async ({ page
   await expect(currentRow).toContainText('42,195 公尺');
   await expect(currentRow).toContainText('完賽');
 
+  await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByTestId('leaderboard-home-button').click();
   await expect(page.locator('[data-leaderboard-body]')).toContainText('慢跑小明');
@@ -188,7 +291,7 @@ test('分享成績在支援時附上 PNG 成績卡', async ({ page }) => {
   await page.evaluate(() => window.__GAME_TEST__?.completeGame());
   await page.locator('[data-score-name]').fill('阿跑');
   await page.locator('[data-score-submit]').click();
-  await expect(page.locator('[data-score-save-status]')).toContainText('已儲存');
+  await expect(page.locator('[data-score-save-status]')).toContainText('通過伺服器驗證');
 
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'canShare', {

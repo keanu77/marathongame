@@ -26,6 +26,8 @@ export interface CreateGameOverResultInput {
   dominantObstacle: ObstacleType | null;
   distanceMeters: number;
   score: number;
+  elapsedSeconds?: number;
+  collectedRecoveryItems?: number;
   highScore: number;
   isNewHighScore: boolean;
 }
@@ -43,6 +45,8 @@ export function createGameOverResult({
   dominantObstacle,
   distanceMeters,
   score,
+  elapsedSeconds = 0,
+  collectedRecoveryItems = 0,
   highScore,
   isNewHighScore,
 }: CreateGameOverResultInput): GameOverResult {
@@ -61,6 +65,8 @@ export function createGameOverResult({
     dominantObstacle,
     distanceMeters: Math.round(normalizeNonNegative(distanceMeters)),
     score: Math.floor(normalizeNonNegative(score)),
+    elapsedSeconds: normalizeNonNegative(elapsedSeconds),
+    collectedRecoveryItems: Math.floor(normalizeNonNegative(collectedRecoveryItems)),
     highScore: Math.floor(normalizeNonNegative(highScore)),
     isNewHighScore,
     educationMessage: educationMessage.text,

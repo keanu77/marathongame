@@ -78,7 +78,7 @@ const UI_MARKUP = `
                 type="button"
               >
                 <span aria-hidden="true">🏆</span>
-                本機排行榜
+                跨裝置排行榜
               </button>
             </div>
             <p class="home-hint">每一關都會更快；量力而為，完賽比硬撐重要。</p>
@@ -265,7 +265,7 @@ const UI_MARKUP = `
 
             <form class="score-save-form" data-score-form novalidate>
               <div class="score-save-form__heading">
-                <label for="leaderboard-name">把本次成績留在排行榜</label>
+                <label for="leaderboard-name">把本次成績送上跨裝置排行榜</label>
                 <span>最多 12 字</span>
               </div>
               <div class="score-save-form__controls">
@@ -280,7 +280,7 @@ const UI_MARKUP = `
                   aria-describedby="score-save-status"
                 />
                 <button class="button button--save" data-score-submit type="submit">
-                  儲存成績
+                  送出驗證
                 </button>
               </div>
               <p id="score-save-status" class="score-save-status" data-score-save-status aria-live="polite"></p>
@@ -344,7 +344,7 @@ const UI_MARKUP = `
             <div class="leaderboard-header">
               <div>
                 <p class="eyebrow">TOP 10</p>
-                <h2 id="leaderboard-title">本機排行榜</h2>
+                <h2 id="leaderboard-title">跨裝置排行榜</h2>
               </div>
               <button
                 class="leaderboard-close"
@@ -357,8 +357,8 @@ const UI_MARKUP = `
             </div>
 
             <p id="leaderboard-device-note" class="leaderboard-device-note">
-              <span aria-hidden="true">🔒</span>
-              成績只儲存在此裝置與瀏覽器，清除網站資料後會消失。
+              <span aria-hidden="true">☁️</span>
+              只顯示通過伺服器規則檢查的成績；暱稱請勿填入真實姓名或敏感資訊。
             </p>
 
             <div class="leaderboard-scroll" data-leaderboard-table hidden>
@@ -376,10 +376,10 @@ const UI_MARKUP = `
               </table>
             </div>
 
-            <div class="leaderboard-empty" data-leaderboard-empty>
-              <span aria-hidden="true">🏃</span>
-              <strong>還沒有本機成績</strong>
-              <p>完成一局並輸入暱稱，就能成為第一位上榜跑者。</p>
+            <div class="leaderboard-empty" data-leaderboard-empty data-state="empty">
+              <span data-leaderboard-empty-icon aria-hidden="true">🏃</span>
+              <strong data-leaderboard-empty-title>還沒有網路成績</strong>
+              <p data-leaderboard-empty-message>完成一局並輸入暱稱，就能成為第一位上榜跑者。</p>
             </div>
           </div>
         </section>
@@ -472,6 +472,10 @@ export class GameUI {
 
   getView(): GameUIView {
     return this.view;
+  }
+
+  isLeaderboardOpen(): boolean {
+    return !this.leaderboardModal.hidden;
   }
 
   isSoundEnabled(): boolean {
@@ -638,7 +642,42 @@ export class GameUI {
 
     table.hidden = visibleRows.length === 0;
     empty.hidden = visibleRows.length > 0;
+    empty.dataset.state = 'empty';
+    this.text('[data-leaderboard-empty-icon]', '🏃');
+    this.text('[data-leaderboard-empty-title]', '還沒有網路成績');
+    this.text('[data-leaderboard-empty-message]', '完成一局並輸入暱稱，就能成為第一位上榜跑者。');
     this.openLeaderboard(false);
+  }
+
+  setLeaderboardLoading(): void {
+    const body = this.element<HTMLTableSectionElement>('[data-leaderboard-body]');
+    const table = this.element<HTMLElement>('[data-leaderboard-table]');
+    const empty = this.element<HTMLElement>('[data-leaderboard-empty]');
+
+    body.replaceChildren();
+    table.hidden = true;
+    empty.hidden = false;
+    empty.dataset.state = 'loading';
+    this.text('[data-leaderboard-empty-icon]', '☁️');
+    this.text('[data-leaderboard-empty-title]', '正在同步排行榜');
+    this.text('[data-leaderboard-empty-message]', '正在讀取各裝置通過驗證的最新成績…');
+  }
+
+  setLeaderboardError(message: string): void {
+    const body = this.element<HTMLTableSectionElement>('[data-leaderboard-body]');
+    const table = this.element<HTMLElement>('[data-leaderboard-table]');
+    const empty = this.element<HTMLElement>('[data-leaderboard-empty]');
+
+    body.replaceChildren();
+    table.hidden = true;
+    empty.hidden = false;
+    empty.dataset.state = 'error';
+    this.text('[data-leaderboard-empty-icon]', '📡');
+    this.text('[data-leaderboard-empty-title]', '暫時無法同步');
+    this.text(
+      '[data-leaderboard-empty-message]',
+      message.trim() || '請檢查網路後關閉視窗再試一次。',
+    );
   }
 
   setScoreSaved(rank: number | null, name: string): void {
@@ -652,12 +691,12 @@ export class GameUI {
     input.disabled = true;
     input.removeAttribute('aria-invalid');
     button.disabled = true;
-    button.textContent = safeRank > 0 ? '已儲存' : '未進榜';
+    button.textContent = safeRank > 0 ? '已驗證' : '已送出';
     status.dataset.state = safeRank > 0 ? 'saved' : 'not-ranked';
     status.textContent =
       safeRank > 0
-        ? `已儲存！${safeName} 目前是第 ${safeRank} 名。`
-        : '本次成績未進前 10，未列入排行榜。';
+        ? `已通過伺服器驗證！${safeName} 目前是第 ${safeRank} 名。`
+        : '成績已通過驗證並儲存，但目前未進入前 10 名。';
   }
 
   setScoreSaveError(message: string): void {
@@ -683,7 +722,7 @@ export class GameUI {
     input.disabled = false;
     input.removeAttribute('aria-invalid');
     button.disabled = false;
-    button.textContent = '儲存成績';
+    button.textContent = '送出驗證';
     status.removeAttribute('data-state');
     status.textContent = '';
   }
@@ -823,7 +862,7 @@ export class GameUI {
         input.removeAttribute('aria-invalid');
         button.disabled = true;
         status.dataset.state = 'pending';
-        status.textContent = '正在儲存本次成績…';
+        status.textContent = '正在驗證與儲存本次成績…';
         this.callbacks.onScoreSubmit(name);
       },
       { signal },

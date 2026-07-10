@@ -1,0 +1,2 @@
+# Copy to .dev.vars for `pnpm dev:cloudflare`; never reuse this placeholder in production.
+RATE_LIMIT_SECRET=replace-with-at-least-24-random-characters
