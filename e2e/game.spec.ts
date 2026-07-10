@@ -10,6 +10,8 @@ declare global {
       getPlayerState: () => string;
       setStage: (stageId: 'base' | 'build' | 'race') => void;
       getMusicState: () => MusicPlaybackState;
+      showFeedback: (kind: 'injury' | 'nutrition') => void;
+      setHudStatusCount: (count: 0 | 3) => void;
     };
     __SHARE_TEST__?: {
       text: string;
@@ -124,6 +126,114 @@ test('遊戲畫布存在', async ({ page }) => {
   await startGame(page);
 
   await expect(gameCanvas(page)).toHaveCount(1);
+});
+
+test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', '此檢查只針對手機直式版面');
+  await startGame(page);
+
+  const compactLayout = await page.evaluate(() => {
+    const frame = document.querySelector('.game-frame')?.getBoundingClientRect();
+    const selectors = ['.hud-top-actions', '.stage-hud', '.hud-summary', '.vitals-card'];
+    const boxes = selectors.map((selector) =>
+      document.querySelector(selector)?.getBoundingClientRect(),
+    );
+    const pauseButton = document
+      .querySelector('[data-testid="pause-button"]')
+      ?.getBoundingClientRect();
+    if (!frame || boxes.some((box) => !box) || !pauseButton) return null;
+
+    return {
+      frameHeight: frame.height,
+      occupiedHeight: Math.max(...boxes.map((box) => box?.bottom ?? 0)) - frame.top,
+      pauseWidth: pauseButton.width,
+      pauseHeight: pauseButton.height,
+      neutralStatusActive:
+        document.querySelector('[data-status-region]')?.getAttribute('data-active') ?? '',
+    };
+  });
+
+  expect(compactLayout).not.toBeNull();
+  expect(compactLayout?.occupiedHeight ?? Infinity).toBeLessThanOrEqual(
+    (compactLayout?.frameHeight ?? 0) * 0.35,
+  );
+  expect(compactLayout?.pauseWidth ?? 0).toBeGreaterThanOrEqual(44);
+  expect(compactLayout?.pauseHeight ?? 0).toBeGreaterThanOrEqual(44);
+  expect(compactLayout?.neutralStatusActive).toBe('false');
+
+  const feedback = page.getByTestId('game-feedback');
+
+  const feedbackLayout = await page.evaluate(() => {
+    window.__GAME_TEST__?.setHudStatusCount(3);
+    window.__GAME_TEST__?.showFeedback('nutrition');
+    const frame = document.querySelector('.game-frame')?.getBoundingClientRect();
+    const vitals = document.querySelector('.vitals-card')?.getBoundingClientRect();
+    const status = document.querySelector('[data-status-region]')?.getBoundingClientRect();
+    const feedbackElement = document.querySelector('[data-testid="game-feedback"]');
+    const feedback = feedbackElement?.getBoundingClientRect();
+    if (!frame || !vitals || !status || !feedback) return null;
+    return {
+      frameBottom: frame.bottom,
+      frameHeight: frame.height,
+      statusBottom: status.bottom,
+      occupiedHeight: feedback.bottom - frame.top,
+      feedbackAnchorBottom: Math.max(vitals.bottom, status.bottom),
+      feedbackTop: feedback.top,
+      feedbackBottom: feedback.bottom,
+      feedbackText: feedbackElement?.textContent ?? '',
+      statusCount: document.querySelectorAll('[data-status-list] [data-status-id]').length,
+    };
+  });
+
+  expect(feedbackLayout).not.toBeNull();
+  expect(feedbackLayout?.statusCount).toBe(3);
+  expect(feedbackLayout?.feedbackText).toContain('營養補給');
+  expect(feedbackLayout?.feedbackTop ?? 0).toBeGreaterThanOrEqual(
+    feedbackLayout?.feedbackAnchorBottom ?? Infinity,
+  );
+  expect(feedbackLayout?.feedbackBottom ?? Infinity).toBeLessThan(feedbackLayout?.frameBottom ?? 0);
+  expect(feedbackLayout?.occupiedHeight ?? Infinity).toBeLessThanOrEqual(
+    (feedbackLayout?.frameHeight ?? 0) * 0.4,
+  );
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+
+  await page.evaluate(() => window.__GAME_TEST__?.showFeedback('injury'));
+  await expect(feedback).toContainText('受傷');
+  await expect(feedback).toHaveCSS('opacity', '1');
+  await page.waitForTimeout(500);
+  await expect(feedback).toContainText('受傷');
+  await page.waitForTimeout(1_000);
+  await expect(feedback).toBeEmpty();
+});
+
+test('320px 窄版手機仍完整呈現體力與受傷風險文字', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', '此檢查只針對手機直式版面');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.reload();
+  await startGame(page);
+
+  const layout = await page.evaluate(() => {
+    const frame = document.querySelector('.game-frame')?.getBoundingClientRect();
+    const vitals = document.querySelector('.vitals-card')?.getBoundingClientRect();
+    const vitalTexts = [
+      ...document.querySelectorAll<HTMLElement>('.vital-heading > span, .vital-heading > strong'),
+    ];
+    if (!frame || !vitals || vitalTexts.length !== 4) return null;
+    return {
+      occupiedHeight: vitals.bottom - frame.top,
+      frameHeight: frame.height,
+      allVitalTextFits: vitalTexts.every(
+        (element) => element.scrollWidth <= element.clientWidth + 1,
+      ),
+    };
+  });
+
+  expect(layout).not.toBeNull();
+  expect(layout?.occupiedHeight ?? Infinity).toBeLessThanOrEqual((layout?.frameHeight ?? 0) * 0.35);
+  expect(layout?.allVitalTextFits).toBe(true);
+  await expect(page.locator('[data-energy-value]')).toHaveText('100 / 100');
+  await expect(page.locator('[data-risk-value]')).toHaveText('0 / 100');
 });
 
 test('手機與桌機跳躍按鈕可觸發角色跳躍', async ({ page }) => {

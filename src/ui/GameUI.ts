@@ -189,12 +189,22 @@ const UI_MARKUP = `
             </div>
           </div>
 
-          <div class="status-region" aria-live="polite">
+          <div class="status-region" data-status-region data-active="false" aria-live="polite">
             <span class="status-region__label">特殊狀態</span>
             <ul class="status-list" data-status-list>
               <li class="status-chip status-chip--neutral">狀態良好</li>
             </ul>
           </div>
+
+          <div
+            class="game-feedback"
+            data-testid="game-feedback"
+            data-game-feedback
+            data-tone="positive"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          ></div>
 
           <button
             class="jump-button"
@@ -424,6 +434,7 @@ export class GameUI {
   private shareCardInput: ShareCardInput | null = null;
   private shareCardFilePromise: Promise<File | null> | null = null;
   private renderedStatusSignature = '';
+  private feedbackTimerId: number | null = null;
 
   private readonly frame: HTMLElement;
   private readonly homeScreen: HTMLElement;
@@ -511,6 +522,7 @@ export class GameUI {
       ...state,
       statuses: state.statuses ? [...state.statuses] : [],
     };
+    this.clearFeedback();
     this.renderHUD();
   }
 
@@ -537,6 +549,30 @@ export class GameUI {
     if (notify) {
       this.callbacks.onSoundChange(enabled);
     }
+  }
+
+  showFeedback(text: string, tone: 'positive' | 'danger', durationMs = 1_400): void {
+    const feedback = this.element<HTMLElement>('[data-game-feedback]');
+    const normalizedText = text.trim();
+    if (!normalizedText) {
+      this.clearFeedback();
+      return;
+    }
+
+    const normalizedDuration = Number.isFinite(durationMs)
+      ? this.clamp(Math.round(durationMs), 600, 3_000)
+      : 1_400;
+    if (this.feedbackTimerId !== null) {
+      window.clearTimeout(this.feedbackTimerId);
+      this.feedbackTimerId = null;
+    }
+    feedback.classList.remove('game-feedback--visible');
+    feedback.textContent = normalizedText;
+    feedback.dataset.tone = tone;
+    feedback.style.setProperty('--feedback-duration', `${normalizedDuration}ms`);
+    void feedback.offsetWidth;
+    feedback.classList.add('game-feedback--visible');
+    this.feedbackTimerId = window.setTimeout(() => this.clearFeedback(), normalizedDuration);
   }
 
   showGameOver(summary: GameOverSummary): void {
@@ -729,6 +765,7 @@ export class GameUI {
 
   destroy(): void {
     this.eventController.abort();
+    this.clearFeedback();
     this.root.replaceChildren();
   }
 
@@ -1054,6 +1091,8 @@ export class GameUI {
   }
 
   private renderStatuses(statuses: HUDStatus[]): void {
+    const region = this.element<HTMLElement>('[data-status-region]');
+    region.dataset.active = String(statuses.length > 0);
     const signature =
       statuses.length === 0
         ? 'healthy'
@@ -1093,6 +1132,16 @@ export class GameUI {
           : label;
       list.append(item);
     });
+  }
+
+  private clearFeedback(): void {
+    if (this.feedbackTimerId !== null) {
+      window.clearTimeout(this.feedbackTimerId);
+      this.feedbackTimerId = null;
+    }
+    const feedback = this.element<HTMLElement>('[data-game-feedback]');
+    feedback.classList.remove('game-feedback--visible');
+    feedback.textContent = '';
   }
 
   private async shareResult(): Promise<void> {

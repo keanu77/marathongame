@@ -492,7 +492,11 @@ export class GameScene extends Phaser.Scene {
 
     this.player.showHurt(GAME_CONFIG.hurtAnimationSeconds * 1_000);
     gameEventBus.emit(GAME_EVENTS.sound, 'hit');
-    this.showFloatingFeedback(this.getObstacleFeedback(obstacle.obstacleType, result), '#b42336');
+    gameEventBus.emit(GAME_EVENTS.feedback, {
+      text: this.getObstacleFeedback(obstacle.obstacleType, result),
+      tone: 'danger',
+      durationMs: GAME_CONFIG.feedbackDurationMs,
+    });
     this.cameras.main.shake(
       GAME_CONFIG.cameraShakeDurationMs,
       GAME_CONFIG.cameraShakeIntensity,
@@ -534,7 +538,11 @@ export class GameScene extends Phaser.Scene {
     );
 
     gameEventBus.emit(GAME_EVENTS.sound, 'pickup');
-    this.showFloatingFeedback(this.getItemFeedback(item.itemType, result), '#147d70');
+    gameEventBus.emit(GAME_EVENTS.feedback, {
+      text: this.getItemFeedback(item.itemType, result),
+      tone: 'positive',
+      durationMs: GAME_CONFIG.feedbackDurationMs,
+    });
     this.emitHud();
   }
 
@@ -604,30 +612,6 @@ export class GameScene extends Phaser.Scene {
 
   private getJourneyDistanceMeters(progress = this.marathonState.stage.overallProgress): number {
     return Math.round(Math.min(1, Math.max(0, progress)) * MARATHON_CONFIG.officialDistanceMeters);
-  }
-
-  private showFloatingFeedback(text: string, color: string): void {
-    const feedback = this.add
-      .text(this.player.x + 8, this.player.y - 80, text, {
-        color,
-        backgroundColor: 'rgba(255,255,255,0.94)',
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '18px',
-        fontStyle: 'bold',
-        padding: { x: 9, y: 6 },
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setDepth(20);
-
-    this.tweens.add({
-      targets: feedback,
-      y: feedback.y - GAME_CONFIG.feedbackFloatDistance,
-      alpha: 0,
-      duration: GAME_CONFIG.feedbackDurationMs,
-      ease: 'Cubic.easeOut',
-      onComplete: () => feedback.destroy(),
-    });
   }
 
   private showTutorialMessage(text: string, holdMs?: number): void {

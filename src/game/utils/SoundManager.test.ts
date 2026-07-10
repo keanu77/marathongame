@@ -106,6 +106,53 @@ describe('SoundManager 三階段程式配樂', () => {
     manager.destroy();
   });
 
+  it('基礎期會排程旋律、低音、低頻鼓與高頻節奏聲部', async () => {
+    const { context, manager } = createManager();
+    await manager.unlock();
+    manager.setMusicStage('base');
+
+    context.currentTime = 0.25;
+    vi.advanceTimersByTime(50);
+    context.currentTime = 0.5;
+    vi.advanceTimersByTime(50);
+
+    const scheduledFrequencies = context.oscillators.map(
+      (oscillator) => oscillator.frequency.setValueAtTime.mock.calls[0]?.[0],
+    );
+    expect(scheduledFrequencies).toContain(261.63);
+    expect(scheduledFrequencies).toContain(130.81);
+    expect(scheduledFrequencies).toContain(112);
+    expect(scheduledFrequencies).toContain(920);
+    manager.destroy();
+  });
+
+  it.each([
+    ['base', 130, 2],
+    ['build', 150, 1],
+    ['race', 170, 1],
+  ] as const)('%s 關卡的實際八分音符排程符合 %i BPM', async (stageId, bpm, firstEventGapSteps) => {
+    const { context, manager } = createManager();
+    await manager.unlock();
+    manager.setMusicStage(stageId);
+
+    context.currentTime = 0.35;
+    vi.advanceTimersByTime(50);
+    const scheduledStartTimes = [
+      ...new Set(
+        context.oscillators
+          .map((oscillator) => oscillator.start.mock.calls[0]?.[0] as number | undefined)
+          .filter((startTime): startTime is number => startTime !== undefined),
+      ),
+    ].sort((left, right) => left - right);
+
+    expect(scheduledStartTimes.length).toBeGreaterThanOrEqual(2);
+    expect((scheduledStartTimes[1] ?? 0) - (scheduledStartTimes[0] ?? 0)).toBeCloseTo(
+      (60 / bpm / 2) * firstEventGapSteps,
+      8,
+    );
+    manager.destroy();
+  });
+
   it('暫停與靜音會停止排程，恢復時回到目前關卡', async () => {
     const { manager } = createManager();
     await manager.unlock();

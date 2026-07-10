@@ -266,15 +266,26 @@ export class SoundManager {
           track.bassVolume,
         );
       }
-      if (track.beatPattern[stepIndex]) {
+      if (track.kick.pattern[stepIndex]) {
         this.scheduleVoice(
           session,
-          MUSIC_ENGINE_CONFIG.beatStartFrequencyHz,
+          track.kick.startFrequencyHz,
           session.nextStepTime,
-          MUSIC_ENGINE_CONFIG.beatDurationSeconds,
-          'sine',
-          track.beatVolume,
-          MUSIC_ENGINE_CONFIG.beatEndFrequencyHz,
+          track.kick.durationSeconds,
+          track.kick.wave,
+          track.kick.volume,
+          track.kick.endFrequencyHz,
+        );
+      }
+      if (track.accent.pattern[stepIndex]) {
+        this.scheduleVoice(
+          session,
+          track.accent.startFrequencyHz,
+          session.nextStepTime,
+          track.accent.durationSeconds,
+          track.accent.wave,
+          track.accent.volume,
+          track.accent.endFrequencyHz,
         );
       }
 

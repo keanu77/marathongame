@@ -77,7 +77,6 @@ export interface GameConfig {
   readonly hitFeedbackDestroyDelayMs: number;
   readonly cameraShakeDurationMs: number;
   readonly cameraShakeIntensity: number;
-  readonly feedbackFloatDistance: number;
   readonly feedbackDurationMs: number;
   readonly difficultyFeedbackDurationMs: number;
   readonly stageTransitionDurationMs: number;
@@ -194,8 +193,7 @@ export const GAME_CONFIG = {
   hitFeedbackDestroyDelayMs: 80,
   cameraShakeDurationMs: 120,
   cameraShakeIntensity: 0.006,
-  feedbackFloatDistance: 42,
-  feedbackDurationMs: 780,
+  feedbackDurationMs: 1_500,
   difficultyFeedbackDurationMs: 1_050,
   stageTransitionDurationMs: 1_800,
   finishGateSpawnOffsetPixels: 100,

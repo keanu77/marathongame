@@ -22,6 +22,7 @@ describe('GameUI', () => {
   afterEach(() => {
     ui?.destroy();
     Reflect.deleteProperty(navigator, 'clipboard');
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -167,6 +168,45 @@ describe('GameUI', () => {
     expect(document.querySelector('[data-stage-step="2"]')?.getAttribute('aria-current')).toBe(
       'step',
     );
+  });
+
+  it('手機 HUD 可辨識沒有特殊狀態，並在效果啟用時標記為顯示', () => {
+    ui = new GameUI({ root: '#app' });
+    const region = document.querySelector<HTMLElement>('[data-status-region]');
+
+    expect(region?.dataset.active).toBe('false');
+    expect(region?.textContent).toContain('狀態良好');
+
+    ui.updateHUD({
+      statuses: [
+        {
+          id: 'strength-protection',
+          icon: '🛡️',
+          label: '阻力訓練防護',
+          remainingSeconds: 4.2,
+          tone: 'positive',
+        },
+      ],
+    });
+
+    expect(region?.dataset.active).toBe('true');
+    expect(region?.textContent).toContain('阻力訓練防護 5 秒');
+  });
+
+  it('受傷與補給回饋使用獨立即時提示並在顯示時間結束後清除', () => {
+    vi.useFakeTimers();
+    ui = new GameUI({ root: '#app' });
+    const feedback = document.querySelector<HTMLElement>('[data-game-feedback]');
+
+    ui.showFeedback('營養補給：體力恢復', 'positive', 1_250);
+    expect(feedback?.textContent).toBe('營養補給：體力恢復');
+    expect(feedback?.dataset.tone).toBe('positive');
+    expect(feedback?.style.getPropertyValue('--feedback-duration')).toBe('1250ms');
+    expect(feedback?.classList.contains('game-feedback--visible')).toBe(true);
+
+    vi.advanceTimersByTime(1_250);
+    expect(feedback?.textContent).toBe('');
+    expect(feedback?.classList.contains('game-feedback--visible')).toBe(false);
   });
 
   it('中途停止結算會呈現抵達階段、原因、衛教、新紀錄與失敗分享文案', async () => {

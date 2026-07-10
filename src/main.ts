@@ -8,7 +8,12 @@ import {
   PACE_MODE_LABELS,
 } from './game/data';
 import { createGame } from './game/createGame';
-import { GAME_EVENTS, gameEventBus, type SoundCue } from './game/events/GameEventBus';
+import {
+  GAME_EVENTS,
+  gameEventBus,
+  type GameFeedback,
+  type SoundCue,
+} from './game/events/GameEventBus';
 import { GameScene } from './game/scenes/GameScene';
 import type { GameOverResult, HudSnapshot, MarathonStageId, PaceMode } from './game/types';
 import { SoundManager, type MusicPlaybackState } from './game/utils/SoundManager';
@@ -32,6 +37,8 @@ declare global {
       getPlayerState: () => string;
       setStage: (stageId: MarathonStageId) => void;
       getMusicState: () => MusicPlaybackState;
+      showFeedback: (kind: 'injury' | 'nutrition') => void;
+      setHudStatusCount: (count: 0 | 3) => void;
     };
   }
 }
@@ -162,6 +169,10 @@ gameEventBus.on(GAME_EVENTS.hudUpdated, (snapshot: HudSnapshot) => {
   queueNetworkCheckpoint(snapshot);
 });
 
+gameEventBus.on(GAME_EVENTS.feedback, (feedback: GameFeedback) => {
+  ui.showFeedback(feedback.text, feedback.tone, feedback.durationMs);
+});
+
 gameEventBus.on(GAME_EVENTS.gameOver, (result: GameOverResult) => {
   soundManager.stopMusic();
   latestResult = result;
@@ -226,6 +237,43 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     getPlayerState: () => getScene()?.getPlayerState() ?? 'unavailable',
     setStage: (stageId) => getScene()?.forceStage(stageId),
     getMusicState: () => soundManager.getMusicState(),
+    showFeedback: (kind) => {
+      const feedback: GameFeedback =
+        kind === 'injury'
+          ? { text: '受傷：風險上升', tone: 'danger', durationMs: 1_400 }
+          : { text: '營養補給：體力恢復', tone: 'positive', durationMs: 1_400 };
+      gameEventBus.emit(GAME_EVENTS.feedback, feedback);
+    },
+    setHudStatusCount: (count) => {
+      ui.updateHUD({
+        statuses:
+          count === 0
+            ? []
+            : [
+                {
+                  id: 'recovery-deficit',
+                  icon: '🌡️',
+                  label: '恢復不足',
+                  remainingSeconds: 6,
+                  tone: 'warning',
+                },
+                {
+                  id: 'strength-protection',
+                  icon: '🛡️',
+                  label: '阻力防護',
+                  remainingSeconds: 4,
+                  tone: 'positive',
+                },
+                {
+                  id: 'pace-zone2',
+                  icon: '💚',
+                  label: 'Zone 2 配速',
+                  remainingSeconds: 5,
+                  tone: 'positive',
+                },
+              ],
+      });
+    },
   };
 }
 
