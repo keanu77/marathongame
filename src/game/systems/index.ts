@@ -24,6 +24,14 @@ export {
 } from './progressSystem';
 export { createGameOverResult, determineGameOverReason } from './gameOverSystem';
 export type { CreateGameOverResultInput } from './gameOverSystem';
+export {
+  appendRunKnowledgeItem,
+  getRunKnowledgeItemForObstacle,
+  getRunKnowledgeItemForRecoveryItem,
+  MAX_RUN_KNOWLEDGE_ITEMS,
+  normalizeRunKnowledgeReview,
+} from './educationReviewSystem';
+export { advanceRemainingGameTimeMs } from './gameTimeSystem';
 export { readHighScore, updateHighScore, writeHighScore } from './highScoreStorage';
 export {
   addLeaderboardEntry,

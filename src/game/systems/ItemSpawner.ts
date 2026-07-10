@@ -4,6 +4,7 @@ import { RecoveryItem } from '../entities/RecoveryItem';
 import type { MarathonStageId, RecoveryItemType } from '../types';
 import { getMarathonStageConfig } from './marathonStageSystem';
 import {
+  accelerateSpawnCountdownMs,
   applySpawnDelayMultiplier,
   getItemSpawnPool,
   isSpawnLaneClear,
@@ -26,6 +27,7 @@ export interface ItemSpawnConfig {
 export class ItemSpawner {
   public readonly group: Phaser.Physics.Arcade.Group;
   private nextSpawnMs = 0;
+  private elapsedSinceLastSpawnMs = 0;
   private active = false;
   private isFirstSpawn = true;
   private stageId: MarathonStageId = 'base';
@@ -45,6 +47,7 @@ export class ItemSpawner {
 
   public start(): void {
     this.active = true;
+    this.elapsedSinceLastSpawnMs = 0;
     this.nextSpawnMs = applySpawnDelayMultiplier(
       this.config.initialDelayMs,
       this.getDelayMultiplier(),
@@ -70,6 +73,7 @@ export class ItemSpawner {
     this.group.clear(true, true);
     this.active = false;
     this.isFirstSpawn = true;
+    this.elapsedSinceLastSpawnMs = 0;
     this.nextSpawnMs = this.randomDelay();
   }
 
@@ -81,6 +85,7 @@ export class ItemSpawner {
     }
 
     if (!this.active) return;
+    this.elapsedSinceLastSpawnMs += Math.max(0, deltaMs);
     this.nextSpawnMs -= deltaMs;
     if (this.nextSpawnMs > 0) return;
     if (!this.isObstacleLaneClear(this.config.obstacleClearancePixels)) return;
@@ -110,7 +115,29 @@ export class ItemSpawner {
     this.isFirstSpawn = false;
     this.group.add(item);
     item.setScrollSpeed(speed);
+    this.elapsedSinceLastSpawnMs = 0;
     this.nextSpawnMs = this.randomDelay();
+  }
+
+  /** 間歇訓練的高風險回報：提早下一個補給機會，但不突破合法最短間隔。 */
+  public accelerateNextSpawn(
+    multiplier: number,
+    availableWindowMs = Number.POSITIVE_INFINITY,
+  ): boolean {
+    if (!this.active) return false;
+    const minimumDelayMs = applySpawnDelayMultiplier(
+      this.config.minDelayMs,
+      this.getDelayMultiplier(),
+    );
+    const previousRemainingMs = this.nextSpawnMs;
+    this.nextSpawnMs = accelerateSpawnCountdownMs(
+      this.nextSpawnMs,
+      this.elapsedSinceLastSpawnMs,
+      minimumDelayMs,
+      multiplier,
+      availableWindowMs,
+    );
+    return this.nextSpawnMs < previousRemainingMs;
   }
 
   public isSpawnLaneClear(clearancePixels: number): boolean {

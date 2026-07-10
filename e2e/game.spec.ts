@@ -10,7 +10,7 @@ declare global {
       getPlayerState: () => string;
       setStage: (stageId: 'base' | 'build' | 'race') => void;
       getMusicState: () => MusicPlaybackState;
-      showFeedback: (kind: 'injury' | 'nutrition') => void;
+      showFeedback: (kind: 'injury' | 'nutrition' | 'education') => void;
       setHudStatusCount: (count: 0 | 3) => void;
     };
     __SHARE_TEST__?: {
@@ -191,7 +191,7 @@ test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', asy
 
   const feedbackLayout = await page.evaluate(() => {
     window.__GAME_TEST__?.setHudStatusCount(3);
-    window.__GAME_TEST__?.showFeedback('nutrition');
+    window.__GAME_TEST__?.showFeedback('education');
     const frame = document.querySelector('.game-frame')?.getBoundingClientRect();
     const vitals = document.querySelector('.vitals-card')?.getBoundingClientRect();
     const status = document.querySelector('[data-status-region]')?.getBoundingClientRect();
@@ -214,6 +214,7 @@ test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', asy
   expect(feedbackLayout).not.toBeNull();
   expect(feedbackLayout?.statusCount).toBe(3);
   expect(feedbackLayout?.feedbackText).toContain('營養補給');
+  expect(feedbackLayout?.feedbackText).toContain('補給需求會受運動時間');
   expect(feedbackLayout?.feedbackTop ?? 0).toBeGreaterThanOrEqual(
     feedbackLayout?.feedbackAnchorBottom ?? Infinity,
   );

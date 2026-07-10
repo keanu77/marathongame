@@ -838,13 +838,14 @@ a:focus-visible {
   margin: 0.42rem auto 0;
   padding: 0.42rem 0.68rem;
   border: 2px solid currentColor;
-  border-radius: 999px;
+  border-radius: 0.9rem;
   box-shadow: 0 0.35rem 0.9rem rgba(16, 33, 63, 0.2);
   background: rgba(255, 255, 255, 0.96);
   font-size: clamp(0.69rem, 2.8vw, 0.82rem);
   font-weight: 900;
   line-height: 1.25;
   text-align: center;
+  white-space: pre-line;
   opacity: 0;
   pointer-events: none;
 }
@@ -1322,6 +1323,81 @@ a:focus-visible {
   color: #4a6568 !important;
   font-size: clamp(0.66rem, 2.7vw, 0.76rem);
   font-weight: 750;
+  line-height: 1.4;
+}
+
+.knowledge-review {
+  margin: 0 0.68rem 0.62rem;
+  padding: 0.66rem;
+  border: 1px solid #a9cec8;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.knowledge-review__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.knowledge-review__heading strong {
+  color: #174d55;
+  font-size: clamp(0.76rem, 3vw, 0.86rem);
+  font-weight: 950;
+}
+
+.knowledge-review__heading small {
+  color: #648083;
+  font-size: clamp(0.61rem, 2.35vw, 0.68rem);
+  font-weight: 750;
+}
+
+.knowledge-review ul {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.knowledge-review li {
+  padding: 0.55rem 0.6rem;
+  border-left: 0.24rem solid #258275;
+  border-radius: 0.58rem;
+  background: #eff7f4;
+}
+
+.knowledge-review li[data-knowledge-kind='obstacle'] {
+  border-left-color: #cf5b58;
+  background: #fff3f2;
+}
+
+.knowledge-review li strong,
+.knowledge-review li span,
+.knowledge-review li small {
+  display: block;
+}
+
+.knowledge-review li strong {
+  color: #1e4f59;
+  font-size: clamp(0.69rem, 2.65vw, 0.77rem);
+  font-weight: 950;
+}
+
+.knowledge-review li span {
+  margin-top: 0.18rem;
+  color: #365b61;
+  font-size: clamp(0.67rem, 2.7vw, 0.77rem);
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.knowledge-review li small {
+  margin-top: 0.22rem;
+  color: #537075;
+  font-size: clamp(0.62rem, 2.45vw, 0.7rem);
+  font-weight: 700;
   line-height: 1.4;
 }
 

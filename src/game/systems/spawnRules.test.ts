@@ -1,6 +1,16 @@
 import { GAME_CONFIG, MARATHON_CONFIG } from '../config';
-import { MARATHON_STAGE_IDS, OBSTACLE_TYPES, RECOVERY_ITEM_TYPES } from '../types';
 import {
+  MARATHON_STAGE_IDS,
+  OBSTACLE_TYPES,
+  PACE_MODES,
+  RECOVERY_ITEM_TYPES,
+  type GameStatusEffects,
+  type PaceMode,
+} from '../types';
+import { getMarathonEffectiveSpeedMultiplier } from './marathonStageSystem';
+import { getSpeedForElapsedSeconds } from './progressSystem';
+import {
+  accelerateSpawnCountdownMs,
   applySpawnDelayMultiplier,
   calculateObstacleSpawnDelayMs,
   getItemSpawnPool,
@@ -9,6 +19,15 @@ import {
 } from './spawnRules';
 
 describe('生成安全規則', () => {
+  it('間歇只會縮短下一次道具等待，且不突破既有最短間隔', () => {
+    expect(accelerateSpawnCountdownMs(4_000, 1_000, 3_500, 0.6)).toBe(2_500);
+    expect(accelerateSpawnCountdownMs(3_800, 1_200, 3_500, 0.6)).toBe(2_300);
+    expect(accelerateSpawnCountdownMs(2_000, 1_500, 3_500, 0.6)).toBe(2_000);
+    expect(accelerateSpawnCountdownMs(5_000, 1_000, 3_500, 2)).toBe(5_000);
+    expect(accelerateSpawnCountdownMs(4_000, 1_000, 3_500, 0.6, 2_400)).toBe(4_000);
+    expect(accelerateSpawnCountdownMs(4_000, 1_000, 3_500, 0.6, 2_600)).toBe(2_500);
+  });
+
   it('生成延遲同時遵守時間與最小中心距離', () => {
     const delay = calculateObstacleSpawnDelayMs({
       speed: 1_000,
@@ -56,6 +75,43 @@ describe('生成安全規則', () => {
     expect(applySpawnDelayMultiplier(2_000, 0.5)).toBe(1_000);
     expect(applySpawnDelayMultiplier(2_000, Number.NaN)).toBe(2_000);
     expect(applySpawnDelayMultiplier(2_000, -1)).toBe(2_000);
+  });
+
+  it('三關在所有配速模式下都保留至少 0.95 秒的障礙反應時間', () => {
+    const requiredReactionWindowMs = 950;
+    const paceModes: readonly (PaceMode | null)[] = [null, ...PACE_MODES];
+    let stageEndSeconds = 0;
+
+    for (const stage of MARATHON_CONFIG.stages) {
+      stageEndSeconds += stage.durationSeconds;
+      const fastestStageElapsedSeconds = stageEndSeconds - 0.001;
+
+      for (const paceMode of paceModes) {
+        const statusEffects: GameStatusEffects = {
+          recoveryDeficitRemainingSeconds: 0,
+          strengthProtectionRemainingSeconds: 0,
+          paceMode,
+          paceRemainingSeconds: paceMode === null ? 0 : 1,
+        };
+        const speed =
+          getSpeedForElapsedSeconds(fastestStageElapsedSeconds) *
+          getMarathonEffectiveSpeedMultiplier(stage.id, statusEffects);
+        const minimumDelayMs = calculateObstacleSpawnDelayMs({
+          speed,
+          sampledDelayMs: GAME_CONFIG.obstacleSpawnMinSeconds * 1_000,
+          minimumDelayMs: GAME_CONFIG.obstacleSpawnMinSeconds * 1_000,
+          minimumGapPixels: GAME_CONFIG.minimumObstacleGapPixels,
+          delayMultiplier: stage.obstacleSpawnDelayMultiplier,
+        });
+
+        expect(minimumDelayMs, `${stage.id}/${paceMode ?? 'normal'}`).toBeGreaterThanOrEqual(
+          requiredReactionWindowMs,
+        );
+        expect((speed * minimumDelayMs) / 1_000).toBeGreaterThanOrEqual(
+          GAME_CONFIG.minimumObstacleGapPixels,
+        );
+      }
+    }
   });
 
   it('生成點邊界採保守判定且拒絕非有限座標', () => {

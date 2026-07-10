@@ -5,6 +5,8 @@ export interface PaceModeConfig {
   readonly speedMultiplier: number;
   readonly energyDrainMultiplier: number;
   readonly immediateEnergyRecovery: number;
+  /** 1 不改變；低於 1 會安全縮短下一個道具機會。 */
+  readonly nextItemSpawnDelayMultiplier: number;
 }
 
 export interface GameConfig {
@@ -16,6 +18,7 @@ export interface GameConfig {
   readonly playerHeight: number;
   readonly gravityY: number;
   readonly jumpVelocity: number;
+  readonly jumpBufferSeconds: number;
   readonly roadSignWidth: number;
   readonly roadSignHeight: number;
   readonly initialSpeed: number;
@@ -62,6 +65,7 @@ export interface GameConfig {
   readonly spawnAheadPixels: number;
   readonly minimumObstacleGapPixels: number;
   readonly minimumObstacleRecoveryGapPixels: number;
+  readonly spawnTransitionSafetyMs: number;
   readonly maximumConcurrentObstacles: number;
   readonly obstacleDespawnX: number;
   readonly recoveryItemDespawnX: number;
@@ -78,6 +82,7 @@ export interface GameConfig {
   readonly cameraShakeDurationMs: number;
   readonly cameraShakeIntensity: number;
   readonly feedbackDurationMs: number;
+  readonly educationFeedbackDurationMs: number;
   readonly difficultyFeedbackDurationMs: number;
   readonly stageTransitionDurationMs: number;
   readonly finishGateSpawnOffsetPixels: number;
@@ -101,6 +106,7 @@ export const GAME_CONFIG = {
   playerHeight: 86,
   gravityY: 1_800,
   jumpVelocity: -720,
+  jumpBufferSeconds: 0.12,
   roadSignWidth: 68,
   roadSignHeight: 88,
 
@@ -140,18 +146,21 @@ export const GAME_CONFIG = {
       speedMultiplier: 0.94,
       energyDrainMultiplier: 0.72,
       immediateEnergyRecovery: 0,
+      nextItemSpawnDelayMultiplier: 1,
     },
     lsd: {
       durationSeconds: 9,
       speedMultiplier: 0.98,
       energyDrainMultiplier: 0.58,
       immediateEnergyRecovery: 8,
+      nextItemSpawnDelayMultiplier: 1,
     },
     interval: {
       durationSeconds: 5,
       speedMultiplier: 1.18,
       energyDrainMultiplier: 1.3,
       immediateEnergyRecovery: 0,
+      nextItemSpawnDelayMultiplier: 0.6,
     },
   },
 
@@ -177,6 +186,7 @@ export const GAME_CONFIG = {
   spawnAheadPixels: 90,
   minimumObstacleGapPixels: 290,
   minimumObstacleRecoveryGapPixels: 150,
+  spawnTransitionSafetyMs: 100,
   maximumConcurrentObstacles: 2,
   obstacleDespawnX: -140,
   recoveryItemDespawnX: -100,
@@ -194,6 +204,7 @@ export const GAME_CONFIG = {
   cameraShakeDurationMs: 120,
   cameraShakeIntensity: 0.006,
   feedbackDurationMs: 1_500,
+  educationFeedbackDurationMs: 2_800,
   difficultyFeedbackDurationMs: 1_050,
   stageTransitionDurationMs: 1_800,
   finishGateSpawnOffsetPixels: 100,

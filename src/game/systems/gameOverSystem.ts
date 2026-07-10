@@ -1,4 +1,5 @@
 import { GAME_CONFIG, type GameConfig } from '../config';
+import type { RunKnowledgeItem } from '../../shared/education';
 import {
   EDUCATION_SAFETY_ALERT,
   selectEducationFocusTopic,
@@ -12,6 +13,7 @@ import type {
   ObstacleType,
   Vitals,
 } from '../types';
+import { normalizeRunKnowledgeReview } from './educationReviewSystem';
 
 export function determineGameOverReason(
   vitals: Vitals,
@@ -33,6 +35,7 @@ export interface CreateGameOverResultInput {
   score: number;
   elapsedSeconds?: number;
   collectedRecoveryItems?: number;
+  knowledgeReview?: readonly RunKnowledgeItem[];
   highScore: number;
   isNewHighScore: boolean;
 }
@@ -52,6 +55,7 @@ export function createGameOverResult({
   score,
   elapsedSeconds = 0,
   collectedRecoveryItems = 0,
+  knowledgeReview = [],
   highScore,
   isNewHighScore,
 }: CreateGameOverResultInput): GameOverResult {
@@ -87,5 +91,6 @@ export function createGameOverResult({
     educationReminders,
     educationFocusTopic: selectEducationFocusTopic(reminderSelection),
     educationSafetyAlert: EDUCATION_SAFETY_ALERT,
+    knowledgeReview: normalizeRunKnowledgeReview(knowledgeReview),
   };
 }

@@ -187,12 +187,10 @@ export async function getEntryRank(db: D1DatabaseLike, id: string): Promise<numb
     .prepare(
       `SELECT rank FROM (
          SELECT run_id,
-                ROW_NUMBER() OVER (
-                  ORDER BY score DESC,
-                           distance_meters DESC,
-                           outcome ASC,
-                           created_at_ms ASC,
-                           run_id ASC
+                RANK() OVER (
+                  ORDER BY outcome ASC,
+                           score DESC,
+                           distance_meters DESC
                 ) AS rank
          FROM leaderboard_entries
        ) WHERE run_id = ?`,
@@ -207,9 +205,9 @@ export async function listLeaderboard(db: D1DatabaseLike, limit: number): Promis
     .prepare(
       `SELECT run_id AS id, name, score, distance_meters, outcome, stage_id, created_at_ms
        FROM leaderboard_entries
-       ORDER BY score DESC,
+       ORDER BY outcome ASC,
+                score DESC,
                 distance_meters DESC,
-                outcome ASC,
                 created_at_ms ASC,
                 run_id ASC
        LIMIT ?`,

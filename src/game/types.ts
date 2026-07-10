@@ -2,6 +2,7 @@ import type {
   EducationReminderCard,
   EducationSafetyAlert,
   EducationTopic,
+  RunKnowledgeItem,
 } from '../shared/education';
 
 export const OBSTACLE_TYPES = ['illness', 'sportsInjury', 'overtraining'] as const;
@@ -149,6 +150,7 @@ export interface GameOverResult {
   educationReminders: readonly EducationReminderCard[];
   educationFocusTopic: EducationTopic;
   educationSafetyAlert: EducationSafetyAlert;
+  knowledgeReview: readonly RunKnowledgeItem[];
 }
 
 /**

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { EducationReminderCard } from '../shared/education';
+import type { EducationReminderCard, RunKnowledgeItem } from '../shared/education';
 import { GameUI } from './GameUI';
 import type { LeaderboardRow } from './types';
 
@@ -36,6 +36,23 @@ const TEST_EDUCATION_REMINDERS = [
     source: { label: '營養來源', url: 'https://example.com/nutrition' },
   },
 ] as const satisfies readonly EducationReminderCard[];
+
+const TEST_KNOWLEDGE_REVIEW = [
+  {
+    id: 'recoveryItem:interval',
+    kind: 'recoveryItem',
+    label: '間歇訓練',
+    message: '間歇訓練能提高速度刺激，但也會增加當次訓練成本。',
+    action: '高強度課表之間保留恢復。',
+  },
+  {
+    id: 'obstacle:sportsInjury',
+    kind: 'obstacle',
+    label: '運動傷害',
+    message: '疼痛、腫脹或功能下降時，不應只靠意志力繼續訓練。',
+    action: '先停止造成症狀的活動。',
+  },
+] as const satisfies readonly RunKnowledgeItem[];
 
 describe('GameUI', () => {
   let ui: GameUI;
@@ -270,6 +287,16 @@ describe('GameUI', () => {
     expect(feedback?.classList.contains('game-feedback--visible')).toBe(false);
   });
 
+  it('即時回饋可顯示兩行衛教文字', () => {
+    ui = new GameUI({ root: '#app' });
+    const feedback = document.querySelector<HTMLElement>('[data-game-feedback]');
+
+    ui.showFeedback('間歇：下一補給提前\n💡 高強度課表之間要保留恢復。', 'positive', 2_800);
+
+    expect(feedback?.textContent).toContain('\n💡');
+    expect(feedback?.style.getPropertyValue('--feedback-duration')).toBe('2800ms');
+  });
+
   it('中途停止結算會呈現抵達階段、原因、衛教、新紀錄與失敗分享文案', async () => {
     const onShare = vi.fn();
     const writeText = mockClipboard();
@@ -318,6 +345,7 @@ describe('GameUI', () => {
         title: '需要立即停下的警訊',
         message: '胸痛或昏倒時立即停止並求助。',
       },
+      knowledgeReview: TEST_KNOWLEDGE_REVIEW,
       outcome: 'stopped',
       stageNumber: 2,
       stageName: '進階期',
@@ -336,6 +364,13 @@ describe('GameUI', () => {
       '本局先看：運動傷害',
     );
     expect(document.querySelector('[data-safety-alert-message]')?.textContent).toContain('胸痛');
+    expect(document.querySelectorAll('[data-knowledge-review-list] li')).toHaveLength(2);
+    expect(document.querySelector('[data-knowledge-review-list]')?.textContent).toContain(
+      '間歇訓練能提高速度刺激',
+    );
+    expect(document.querySelector('[data-knowledge-review-list]')?.textContent).toContain(
+      '可以這樣做：先停止造成症狀的活動。',
+    );
     expect(
       document.querySelector('[data-testid="game-over-screen"]')?.getAttribute('aria-describedby'),
     ).toContain('game-over-disclaimer');
@@ -375,12 +410,22 @@ describe('GameUI', () => {
       educationAction: '測試行動',
       educationReminders: [unsafeReminder],
       educationFocusTopic: 'training',
+      knowledgeReview: [
+        {
+          ...TEST_KNOWLEDGE_REVIEW[0],
+          message: '<img src=x onerror=alert(1)>',
+        },
+      ],
     });
 
     expect(document.querySelector('[data-reminder-title]')?.textContent).toBe(
       '<img src=x onerror=alert(1)>',
     );
     expect(document.querySelector('[data-education-reminder-card] img')).toBeNull();
+    expect(document.querySelector('[data-knowledge-review-list]')?.textContent).toContain(
+      '<img src=x onerror=alert(1)>',
+    );
+    expect(document.querySelector('[data-knowledge-review-list] img')).toBeNull();
     expect(document.querySelector<HTMLAnchorElement>('[data-reminder-source]')?.hidden).toBe(true);
   });
 
@@ -419,9 +464,9 @@ describe('GameUI', () => {
     const rows: LeaderboardRow[] = Array.from({ length: 12 }, (_, index) => ({
       id: `row-${index + 1}`,
       name: index === 0 ? maliciousName : `跑者 ${index + 1}`,
-      score: 2_000 - index * 100,
-      distanceMeters: 1_500 - index * 50,
-      outcome: index % 2 === 0 ? 'completed' : 'stopped',
+      score: index < 2 ? 2_000 : 2_000 - (index - 1) * 100,
+      distanceMeters: index < 2 ? 1_500 : 1_500 - (index - 1) * 50,
+      outcome: index < 6 ? 'completed' : 'stopped',
     }));
 
     ui.showLeaderboard(rows, 'row-2');
@@ -433,6 +478,12 @@ describe('GameUI', () => {
     expect(renderedRows[1]?.getAttribute('data-current')).toBe('true');
     expect(renderedRows[1]?.textContent).toContain('你');
     expect(document.querySelectorAll('.leaderboard-outcome')).toHaveLength(10);
+    expect(
+      Array.from(document.querySelectorAll('.leaderboard-rank'), (cell) => cell.textContent).slice(
+        0,
+        3,
+      ),
+    ).toEqual(['#1', '#1', '#3']);
 
     ui.showLeaderboard([]);
     expect(document.querySelector<HTMLElement>('[data-leaderboard-empty]')?.hidden).toBe(false);

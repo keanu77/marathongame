@@ -2,6 +2,7 @@ import type {
   EducationReminderCard,
   EducationSafetyAlert,
   EducationTopic,
+  RunKnowledgeItem,
 } from '../shared/education';
 
 /**
@@ -61,6 +62,8 @@ export interface GameOverSummary {
   educationReminders?: readonly EducationReminderCard[];
   educationFocusTopic?: EducationTopic;
   educationSafetyAlert?: EducationSafetyAlert;
+  /** 本局實際碰到的事件，依首次出現順序整理，最多五則。 */
+  knowledgeReview?: readonly RunKnowledgeItem[];
   /** 未提供時，UI 會依 completed／stopped 自動建立繁中分享文案。 */
   shareText?: string;
   isNewHighScore?: boolean;

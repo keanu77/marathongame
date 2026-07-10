@@ -88,6 +88,39 @@ export function applySpawnDelayMultiplier(delayMs: number, multiplier: number): 
   return safeDelayMs * safeMultiplier;
 }
 
+/**
+ * 高強度間歇可把下一次道具機會往前拉，但絕不突破同關卡原有的
+ * 最短生成間隔；因此仍落在伺服器防作弊採用的理論上限內。
+ */
+export function accelerateSpawnCountdownMs(
+  remainingMs: number,
+  elapsedSinceLastSpawnMs: number,
+  minimumDelayMs: number,
+  multiplier: number,
+  availableWindowMs = Number.POSITIVE_INFINITY,
+): number {
+  const safeRemaining = Number.isFinite(remainingMs) ? Math.max(0, remainingMs) : 0;
+  const safeElapsed = Number.isFinite(elapsedSinceLastSpawnMs)
+    ? Math.max(0, elapsedSinceLastSpawnMs)
+    : 0;
+  const safeMinimum = Number.isFinite(minimumDelayMs) ? Math.max(0, minimumDelayMs) : 0;
+  const safeMultiplier =
+    Number.isFinite(multiplier) && multiplier > 0 && multiplier <= 1 ? multiplier : 1;
+
+  const safeWindow = Number.isFinite(availableWindowMs)
+    ? Math.max(0, availableWindowMs)
+    : Number.POSITIVE_INFINITY;
+  const earliestLegalRemaining = Math.max(0, safeMinimum - safeElapsed);
+  const acceleratedRemaining = Math.min(
+    safeRemaining,
+    Math.max(earliestLegalRemaining, safeRemaining * safeMultiplier),
+  );
+
+  // Do not advertise a reward that a stage boundary or finish approach will
+  // reset before it can occur.
+  return acceleratedRemaining < safeWindow ? acceleratedRemaining : safeRemaining;
+}
+
 export function isSpawnLaneClear(
   occupantCenterXs: readonly number[],
   spawnX: number,

@@ -37,7 +37,7 @@ declare global {
       getPlayerState: () => string;
       setStage: (stageId: MarathonStageId) => void;
       getMusicState: () => MusicPlaybackState;
-      showFeedback: (kind: 'injury' | 'nutrition') => void;
+      showFeedback: (kind: 'injury' | 'nutrition' | 'education') => void;
       setHudStatusCount: (count: 0 | 3) => void;
     };
   }
@@ -196,6 +196,7 @@ gameEventBus.on(GAME_EVENTS.gameOver, (result: GameOverResult) => {
     educationReminders: result.educationReminders,
     educationFocusTopic: result.educationFocusTopic,
     educationSafetyAlert: result.educationSafetyAlert,
+    knowledgeReview: result.knowledgeReview,
     isNewHighScore: result.isNewHighScore,
     outcome: result.outcome,
     stageNumber: toStageNumber(result.stageIndex),
@@ -244,7 +245,13 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
       const feedback: GameFeedback =
         kind === 'injury'
           ? { text: '受傷：風險上升', tone: 'danger', durationMs: 1_400 }
-          : { text: '營養補給：體力恢復', tone: 'positive', durationMs: 1_400 };
+          : kind === 'education'
+            ? {
+                text: '營養補給：體力恢復\n💡 補給需求會受運動時間、環境與個人狀況影響。',
+                tone: 'positive',
+                durationMs: GAME_CONFIG.educationFeedbackDurationMs,
+              }
+            : { text: '營養補給：體力恢復', tone: 'positive', durationMs: 1_400 };
       gameEventBus.emit(GAME_EVENTS.feedback, feedback);
     },
     setHudStatusCount: (count) => {

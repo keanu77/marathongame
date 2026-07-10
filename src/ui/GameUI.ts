@@ -2,6 +2,7 @@ import type {
   EducationReminderCard,
   EducationSafetyAlert,
   EducationTopic,
+  RunKnowledgeItem,
 } from '../shared/education';
 import {
   DEFAULT_HUD_STATE,
@@ -315,6 +316,13 @@ const UI_MARKUP = `
                 <span class="education-hub__toggle" aria-hidden="true"></span>
               </summary>
               <p class="education-hub__intro">每局輪替三個一般重點；切換分類，每次帶走一件事。</p>
+              <section class="knowledge-review" data-knowledge-review hidden>
+                <div class="knowledge-review__heading">
+                  <strong>本局知識回顧</strong>
+                  <small>依本局實際事件整理</small>
+                </div>
+                <ul data-knowledge-review-list></ul>
+              </section>
               <div
                 class="education-topic-switcher"
                 data-education-topic-switcher
@@ -708,6 +716,7 @@ export class GameUI {
       summary.educationReminders ?? [],
       summary.educationFocusTopic,
       summary.educationSafetyAlert,
+      summary.knowledgeReview ?? [],
     );
     this.text('[data-share-status]', '');
     this.element('[data-new-record]').hidden = !summary.isNewHighScore;
@@ -721,13 +730,18 @@ export class GameUI {
     this.refreshShareContent();
   }
 
-  /** 顯示控制層已排序資料的前 10 筆；所有動態文字均以 textContent 寫入。 */
+  /**
+   * 顯示伺服器已排序資料的前 10 筆；相同結果、分數與距離使用競賽名次。
+   * 所有動態文字均以 textContent 寫入。
+   */
   showLeaderboard(rows: readonly LeaderboardRow[], currentId?: string): void {
     const body = this.element<HTMLTableSectionElement>('[data-leaderboard-body]');
     const table = this.element<HTMLElement>('[data-leaderboard-table]');
     const empty = this.element<HTMLElement>('[data-leaderboard-empty]');
     const visibleRows = rows.slice(0, 10);
     body.replaceChildren();
+    let displayedRank = 0;
+    let previousEntry: LeaderboardRow | undefined;
 
     visibleRows.forEach((entry, index) => {
       const row = document.createElement('tr');
@@ -735,7 +749,14 @@ export class GameUI {
       row.dataset.current = String(isCurrent);
       if (isCurrent) row.setAttribute('aria-current', 'true');
 
-      this.appendLeaderboardCell(row, `#${index + 1}`, 'leaderboard-rank');
+      const isTiedWithPrevious =
+        previousEntry !== undefined &&
+        entry.outcome === previousEntry.outcome &&
+        entry.score === previousEntry.score &&
+        entry.distanceMeters === previousEntry.distanceMeters;
+      if (!isTiedWithPrevious) displayedRank = index + 1;
+      this.appendLeaderboardCell(row, `#${displayedRank}`, 'leaderboard-rank');
+      previousEntry = entry;
 
       const nameCell = document.createElement('td');
       nameCell.className = 'leaderboard-name';
@@ -1271,9 +1292,12 @@ export class GameUI {
     reminders: readonly EducationReminderCard[],
     preferredTopic: EducationTopic | undefined,
     safetyAlert: EducationSafetyAlert | undefined,
+    knowledgeReview: readonly RunKnowledgeItem[],
   ): void {
     const hub = this.element<HTMLDetailsElement>('[data-education-hub]');
     const switcher = this.element<HTMLElement>('[data-education-topic-switcher]');
+    const review = this.element<HTMLElement>('[data-knowledge-review]');
+    const reviewList = this.element<HTMLUListElement>('[data-knowledge-review-list]');
     const uniqueReminders: EducationReminderCard[] = [];
 
     reminders.forEach((reminder) => {
@@ -1287,12 +1311,30 @@ export class GameUI {
     });
 
     this.educationReminders = uniqueReminders;
+    this.renderKnowledgeReview(review, reviewList, knowledgeReview);
     switcher.replaceChildren();
-    if (uniqueReminders.length === 0) {
+    if (uniqueReminders.length === 0 && review.hidden) {
       this.activeEducationTopic = null;
       hub.hidden = true;
       return;
     }
+
+    if (uniqueReminders.length === 0) {
+      this.activeEducationTopic = null;
+      switcher.hidden = true;
+      this.element<HTMLElement>('[data-education-reminder-card]').hidden = true;
+      const alert = this.element<HTMLElement>('[data-education-safety-alert]');
+      alert.hidden = safetyAlert === undefined;
+      this.text('[data-safety-alert-title]', safetyAlert?.title ?? '');
+      this.text('[data-safety-alert-message]', safetyAlert?.message ?? '');
+      hub.hidden = false;
+      hub.open = false;
+      this.text('[data-education-hub-teaser]', `${knowledgeReview.length} 個本局知識點`);
+      return;
+    }
+
+    switcher.hidden = false;
+    this.element<HTMLElement>('[data-education-reminder-card]').hidden = false;
 
     const initialTopic =
       preferredTopic && uniqueReminders.some((reminder) => reminder.topic === preferredTopic)
@@ -1333,6 +1375,34 @@ export class GameUI {
         `本局先看：${teaserReminder.topicLabel}・${teaserReminder.title}`,
       );
     }
+  }
+
+  private renderKnowledgeReview(
+    region: HTMLElement,
+    list: HTMLUListElement,
+    items: readonly RunKnowledgeItem[],
+  ): void {
+    list.replaceChildren();
+    const seenIds = new Set<string>();
+
+    items.forEach((item) => {
+      if (seenIds.size >= 5 || seenIds.has(item.id)) return;
+      seenIds.add(item.id);
+
+      const row = document.createElement('li');
+      row.dataset.knowledgeKind = item.kind;
+
+      const heading = document.createElement('strong');
+      heading.textContent = `${item.kind === 'obstacle' ? '注意' : '收集'}・${item.label}`;
+      const message = document.createElement('span');
+      message.textContent = item.message;
+      const action = document.createElement('small');
+      action.textContent = `可以這樣做：${item.action}`;
+      row.append(heading, message, action);
+      list.append(row);
+    });
+
+    region.hidden = seenIds.size === 0;
   }
 
   private setActiveEducationTopic(topic: EducationTopic): void {

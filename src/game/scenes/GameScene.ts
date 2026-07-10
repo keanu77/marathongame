@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import type { RunKnowledgeItem } from '../../shared/education';
 import { calculateValidatedScore } from '../../shared/networkLeaderboardRules';
 import { GAME_CONFIG, MARATHON_CONFIG } from '../config';
 import { MARATHON_STAGE_ENTRY_COPY } from '../data';
@@ -12,6 +13,8 @@ import { GAME_EVENTS, gameEventBus } from '../events/GameEventBus';
 import {
   advanceMarathonRunState,
   advanceProgress,
+  advanceRemainingGameTimeMs,
+  appendRunKnowledgeItem,
   applyMarathonObstacleImpact,
   applyMarathonRecoveryItem,
   createGameOverResult,
@@ -20,6 +23,8 @@ import {
   createObstacleImpactCounts,
   determineMarathonOutcome,
   getDominantObstacle,
+  getRunKnowledgeItemForObstacle,
+  getRunKnowledgeItemForRecoveryItem,
   getMarathonEffectiveSpeedMultiplier,
   getMarathonStageSnapshot,
   getMarathonTotalDurationSeconds,
@@ -64,7 +69,10 @@ export class GameScene extends Phaser.Scene {
   private marathonState: MarathonRunState = createInitialMarathonRunState();
   private progress: GameProgress = createInitialProgress();
   private impactCounts: ObstacleImpactCounts = createObstacleImpactCounts();
-  private invulnerableUntilMs = 0;
+  private invulnerabilityRemainingMs = 0;
+  private invulnerabilityActivatedThisFrame = false;
+  private knowledgeReview: readonly RunKnowledgeItem[] = [];
+  private readonly encounteredKnowledgeIds = new Set<string>();
   private hudUpdateAccumulatorMs = 0;
   private soundEnabled = true;
   private hasCompletedFirstRunTutorial = false;
@@ -168,7 +176,15 @@ export class GameScene extends Phaser.Scene {
 
   public update(_time: number, deltaMs: number): void {
     const isRunning = this.runState === 'running';
+    this.invulnerabilityRemainingMs = advanceRemainingGameTimeMs(
+      this.invulnerabilityRemainingMs,
+      deltaMs,
+      isRunning,
+      this.invulnerabilityActivatedThisFrame,
+    );
+    if (isRunning) this.invulnerabilityActivatedThisFrame = false;
     this.player.updateRunner(deltaMs, isRunning);
+    if (isRunning) this.playerController.update(deltaMs);
 
     if (!isRunning) {
       if (this.runState === 'idle') {
@@ -252,7 +268,10 @@ export class GameScene extends Phaser.Scene {
       initialSpeedMultiplier,
     );
     this.impactCounts = createObstacleImpactCounts();
-    this.invulnerableUntilMs = 0;
+    this.invulnerabilityRemainingMs = 0;
+    this.invulnerabilityActivatedThisFrame = false;
+    this.knowledgeReview = [];
+    this.encounteredKnowledgeIds.clear();
     this.hudUpdateAccumulatorMs = 0;
     this.spawnSystemsStarted = false;
     this.finishApproachStarted = false;
@@ -392,6 +411,10 @@ export class GameScene extends Phaser.Scene {
     this.runState = 'idle';
     this.spawnSystemsStarted = false;
     this.finishApproachStarted = false;
+    this.invulnerabilityRemainingMs = 0;
+    this.invulnerabilityActivatedThisFrame = false;
+    this.knowledgeReview = [];
+    this.encounteredKnowledgeIds.clear();
     this.playerController?.setEnabled(false);
     this.obstacleSpawner?.reset();
     this.itemSpawner?.reset();
@@ -473,8 +496,9 @@ export class GameScene extends Phaser.Scene {
     obstacle.setAlpha(0.3);
     this.time.delayedCall(GAME_CONFIG.hitFeedbackDestroyDelayMs, () => obstacle.destroy());
 
-    if (this.time.now < this.invulnerableUntilMs) return;
-    this.invulnerableUntilMs = this.time.now + GAME_CONFIG.hurtInvulnerabilitySeconds * 1_000;
+    if (this.invulnerabilityRemainingMs > 0) return;
+    this.invulnerabilityRemainingMs = GAME_CONFIG.hurtInvulnerabilitySeconds * 1_000;
+    this.invulnerabilityActivatedThisFrame = true;
 
     const result = applyMarathonObstacleImpact(
       this.marathonState.vitals,
@@ -491,11 +515,16 @@ export class GameScene extends Phaser.Scene {
     this.impactCounts = recordObstacleImpact(this.impactCounts, obstacle.obstacleType);
 
     this.player.showHurt(GAME_CONFIG.hurtAnimationSeconds * 1_000);
+    const knowledgeItem = getRunKnowledgeItemForObstacle(obstacle.obstacleType);
+    const feedback = this.addKnowledgeTip(
+      this.getObstacleFeedback(obstacle.obstacleType, result),
+      knowledgeItem,
+    );
     gameEventBus.emit(GAME_EVENTS.sound, 'hit');
     gameEventBus.emit(GAME_EVENTS.feedback, {
-      text: this.getObstacleFeedback(obstacle.obstacleType, result),
+      text: feedback.text,
       tone: 'danger',
-      durationMs: GAME_CONFIG.feedbackDurationMs,
+      durationMs: feedback.durationMs,
     });
     this.cameras.main.shake(
       GAME_CONFIG.cameraShakeDurationMs,
@@ -526,6 +555,12 @@ export class GameScene extends Phaser.Scene {
       vitals: result.vitals,
       statusEffects: result.statusEffects,
     };
+    const intervalSpawnAccelerated =
+      item.itemType === 'interval' &&
+      this.itemSpawner.accelerateNextSpawn(
+        GAME_CONFIG.paceModes.interval.nextItemSpawnDelayMultiplier,
+        this.getRemainingItemSpawnWindowMs(),
+      );
     this.progress = advanceProgress(
       this.progress,
       0,
@@ -537,11 +572,16 @@ export class GameScene extends Phaser.Scene {
       ),
     );
 
+    const knowledgeItem = getRunKnowledgeItemForRecoveryItem(item.itemType);
+    const feedback = this.addKnowledgeTip(
+      this.getItemFeedback(item.itemType, result, intervalSpawnAccelerated),
+      knowledgeItem,
+    );
     gameEventBus.emit(GAME_EVENTS.sound, 'pickup');
     gameEventBus.emit(GAME_EVENTS.feedback, {
-      text: this.getItemFeedback(item.itemType, result),
+      text: feedback.text,
       tone: 'positive',
-      durationMs: GAME_CONFIG.feedbackDurationMs,
+      durationMs: feedback.durationMs,
     });
     this.emitHud();
   }
@@ -577,6 +617,7 @@ export class GameScene extends Phaser.Scene {
       score,
       elapsedSeconds,
       collectedRecoveryItems,
+      knowledgeReview: this.knowledgeReview,
       highScore,
       isNewHighScore: score > previousHighScore,
     });
@@ -714,7 +755,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private getItemFeedback(type: RecoveryItem['itemType'], result: RecoveryItemResult): string {
+  private getItemFeedback(
+    type: RecoveryItem['itemType'],
+    result: RecoveryItemResult,
+    intervalSpawnAccelerated = false,
+  ): string {
     switch (type) {
       case 'sleep': {
         const recovered = this.formatEffectValue(result.energyRecovered);
@@ -734,8 +779,36 @@ export class GameScene extends Phaser.Scene {
       case 'lsd':
         return `LSD 長距離慢跑：${GAME_CONFIG.paceModes.lsd.durationSeconds} 秒`;
       case 'interval':
-        return `間歇：加速 ${GAME_CONFIG.paceModes.interval.durationSeconds} 秒`;
+        return intervalSpawnAccelerated
+          ? `間歇：加速 ${GAME_CONFIG.paceModes.interval.durationSeconds} 秒・下一補給提前`
+          : `間歇：加速 ${GAME_CONFIG.paceModes.interval.durationSeconds} 秒・高刺激高耗能`;
     }
+  }
+
+  private addKnowledgeTip(
+    baseFeedback: string,
+    knowledgeItem: RunKnowledgeItem,
+  ): { text: string; durationMs: number } {
+    if (this.encounteredKnowledgeIds.has(knowledgeItem.id)) {
+      return { text: baseFeedback, durationMs: GAME_CONFIG.feedbackDurationMs };
+    }
+
+    this.encounteredKnowledgeIds.add(knowledgeItem.id);
+    this.knowledgeReview = appendRunKnowledgeItem(this.knowledgeReview, knowledgeItem);
+    return {
+      text: `${baseFeedback}\n💡 ${knowledgeItem.message}`,
+      durationMs: GAME_CONFIG.educationFeedbackDurationMs,
+    };
+  }
+
+  private getRemainingItemSpawnWindowMs(): number {
+    const finishLeadSeconds =
+      this.marathonState.stage.stageId === 'race' ? MARATHON_CONFIG.finishGateLeadSeconds : 0;
+    return Math.max(
+      0,
+      (this.marathonState.stage.totalRemainingSeconds - finishLeadSeconds) * 1_000 -
+        GAME_CONFIG.spawnTransitionSafetyMs,
+    );
   }
 
   private formatEffectValue(value: number): string {
