@@ -33,6 +33,10 @@ export interface CreateGameOverResultInput {
   dominantObstacle: ObstacleType | null;
   distanceMeters: number;
   score: number;
+  finalEnergy?: number;
+  finalInjuryRisk?: number;
+  healthBonus?: number;
+  finishQualityIndex?: number;
   elapsedSeconds?: number;
   collectedRecoveryItems?: number;
   knowledgeReview?: readonly RunKnowledgeItem[];
@@ -53,12 +57,26 @@ export function createGameOverResult({
   dominantObstacle,
   distanceMeters,
   score,
+  finalEnergy,
+  finalInjuryRisk,
+  healthBonus = 0,
+  finishQualityIndex = 0,
   elapsedSeconds = 0,
   collectedRecoveryItems = 0,
   knowledgeReview = [],
   highScore,
   isNewHighScore,
 }: CreateGameOverResultInput): GameOverResult {
+  const normalizedFinalEnergy = Math.min(
+    GAME_CONFIG.maxEnergy,
+    normalizeNonNegative(finalEnergy ?? (outcome === 'completed' ? GAME_CONFIG.maxEnergy : 0)),
+  );
+  const normalizedFinalInjuryRisk = Math.min(
+    GAME_CONFIG.maxInjuryRisk,
+    normalizeNonNegative(
+      finalInjuryRisk ?? (outcome === 'completed' ? GAME_CONFIG.minInjuryRisk : 100),
+    ),
+  );
   const educationMessage = selectEducationMessage({
     dominantObstacle,
     gameOverReason: reason,
@@ -82,6 +100,10 @@ export function createGameOverResult({
     dominantObstacle,
     distanceMeters: Math.round(normalizeNonNegative(distanceMeters)),
     score: Math.floor(normalizeNonNegative(score)),
+    finalEnergy: normalizedFinalEnergy,
+    finalInjuryRisk: normalizedFinalInjuryRisk,
+    healthBonus: Math.floor(normalizeNonNegative(healthBonus)),
+    finishQualityIndex: Math.min(100, Math.round(normalizeNonNegative(finishQualityIndex))),
     elapsedSeconds: normalizeNonNegative(elapsedSeconds),
     collectedRecoveryItems: Math.floor(normalizeNonNegative(collectedRecoveryItems)),
     highScore: Math.floor(normalizeNonNegative(highScore)),

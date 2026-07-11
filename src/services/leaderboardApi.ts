@@ -22,6 +22,10 @@ export interface RunCheckpointInput {
   token: string;
   elapsedSeconds: number;
   collectedRecoveryItems: number;
+  /** 0～100；會在送出前正規化為小數點後 3 位。 */
+  energy: number;
+  /** 0～100；會在送出前正規化為小數點後 3 位。 */
+  injuryRisk: number;
 }
 
 export interface RunCheckpointResponse {
@@ -41,6 +45,8 @@ export interface RemoteLeaderboardEntry {
   distanceMeters: number;
   outcome: RunOutcome;
   stageId: MarathonStageId;
+  /** 舊制成績沒有健康完賽加分，因此為 null。 */
+  healthBonus: number | null;
 }
 
 export interface FinishRunResponse {
@@ -114,6 +120,7 @@ const RESPONSE_LIMITS = {
   name: 12,
   leaderboardEntries: 10,
   officialDistanceMeters: 42_195,
+  healthBonus: 400,
 } as const;
 
 const ERROR_RESPONSE_LIMITS = {
@@ -346,11 +353,21 @@ function normalizeCheckpointInput(input: RunCheckpointInput): RunCheckpointInput
   if (!isNonNegativeSafeInteger(input.collectedRecoveryItems)) {
     throw new LeaderboardApiError('invalid_request', '恢復道具數量格式不正確。');
   }
+  const energy = normalizeVital(input.energy);
+  const injuryRisk = normalizeVital(input.injuryRisk);
+  if (energy === null || injuryRisk === null) {
+    throw new LeaderboardApiError(
+      'invalid_request',
+      '體力與受傷風險必須是 0～100 之間的有限數值。',
+    );
+  }
 
   return {
     token: input.token,
     elapsedSeconds: input.elapsedSeconds,
     collectedRecoveryItems: input.collectedRecoveryItems,
+    energy,
+    injuryRisk,
   };
 }
 
@@ -418,7 +435,15 @@ function parseLeaderboardResponse(value: unknown): LeaderboardResponse {
 }
 
 function parseLeaderboardEntry(value: unknown): RemoteLeaderboardEntry {
-  const entry = exactRecord(value, ['id', 'name', 'score', 'distanceMeters', 'outcome', 'stageId']);
+  const entry = exactRecord(value, [
+    'id',
+    'name',
+    'score',
+    'distanceMeters',
+    'outcome',
+    'stageId',
+    'healthBonus',
+  ]);
   const outcome = entry.outcome;
   const stageId = entry.stageId;
   if (!isRunOutcome(outcome) || !isMarathonStageId(stageId)) throw invalidResponseError();
@@ -433,6 +458,7 @@ function parseLeaderboardEntry(value: unknown): RemoteLeaderboardEntry {
     ),
     outcome,
     stageId,
+    healthBonus: responseNullableNonNegativeInteger(entry.healthBonus, RESPONSE_LIMITS.healthBonus),
   };
 }
 
@@ -479,6 +505,14 @@ function responseNullableRank(value: unknown): number | null {
   return value;
 }
 
+function responseNullableNonNegativeInteger(
+  value: unknown,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number | null {
+  if (value === null) return null;
+  return responseNonNegativeInteger(value, maximum);
+}
+
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -494,6 +528,13 @@ function isNonEmptyTrimmedString(value: unknown, maximumLength: number): value i
 
 function isFiniteNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function normalizeVital(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+    return null;
+  }
+  return Math.round(value * 1_000) / 1_000;
 }
 
 function isNonNegativeSafeInteger(value: unknown): value is number {

@@ -8,8 +8,9 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   // Runtime vector-atlas baking is intentionally exercised on every fresh
-  // page; two local workers keep browser QA deterministic on constrained Macs.
-  workers: process.env.CI ? 1 : 2,
+  // page. A single worker avoids mobile timeouts caused by two Chromium tabs
+  // baking the 48-frame atlas at the same time on constrained machines.
+  workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL,

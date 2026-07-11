@@ -74,6 +74,9 @@ class StatefulStatement implements D1PreparedStatement {
         ,
         outcome,
         stageId,
+        ,
+        ,
+        healthBonus,
         createdAtMs,
         runId,
         finishFingerprint,
@@ -93,6 +96,7 @@ class StatefulStatement implements D1PreparedStatement {
         distance_meters: distanceMeters as number,
         outcome: outcome as EntryRow['outcome'],
         stage_id: stageId as EntryRow['stage_id'],
+        health_bonus: healthBonus as number,
         created_at_ms: createdAtMs as number,
       };
       this.db.insertCount += 1;
@@ -148,6 +152,8 @@ async function createIssuedDatabase(): Promise<StatefulDatabase> {
     status: 'issued',
     checkpoint_elapsed_seconds: null,
     checkpoint_items: null,
+    checkpoint_energy: null,
+    checkpoint_injury_risk: null,
     checkpoint_at_ms: null,
     submitted_at_ms: null,
     finish_fingerprint: null,
@@ -159,6 +165,8 @@ const validPayload = {
   name: '測試跑者',
   elapsedSeconds: 10,
   collectedRecoveryItems: 0,
+  energy: 0,
+  injuryRisk: 0,
   outcome: 'stopped',
   stageId: 'base',
 };

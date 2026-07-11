@@ -1,6 +1,7 @@
 import {
   calculateValidatedDistance,
   calculateValidatedScore,
+  calculateValidatedScoreBreakdown,
   DEFAULT_LEADERBOARD_NAME,
   getTheoreticalMaximumAdditionalRecoveryItems,
   getTheoreticalMaximumRecoveryItems,
@@ -17,11 +18,44 @@ const ISSUED_AT = 1_700_000_000_000;
 const EXPIRES_AT = ISSUED_AT + 15 * 60_000;
 
 describe('network leaderboard score rules', () => {
-  it('maps 80 seconds to the official distance and calculates only from elapsed time and items', () => {
+  it('maps 80 seconds to the official distance and keeps the running score deterministic', () => {
     expect(calculateValidatedDistance(80)).toBe(42_195);
     expect(calculateValidatedDistance(500)).toBe(42_195);
     expect(calculateValidatedScore(80, 3)).toBe(Math.floor(42_195 / 25) + 150);
     expect(calculateValidatedScore(Number.NaN, -20)).toBe(0);
+  });
+
+  it('uses remaining energy and low injury risk to separate otherwise identical completions', () => {
+    const exhausted = calculateValidatedScore(80, 16, { energy: 20, injuryRisk: 80 });
+    const steady = calculateValidatedScore(80, 16, { energy: 60, injuryRisk: 30 });
+    const healthy = calculateValidatedScore(80, 16, { energy: 85, injuryRisk: 10 });
+    const perfect = calculateValidatedScoreBreakdown(80, 16, {
+      energy: 100,
+      injuryRisk: 0,
+    });
+
+    expect(exhausted).toBe(2_567);
+    expect(steady).toBe(2_747);
+    expect(healthy).toBe(2_837);
+    expect(exhausted).toBeLessThan(steady);
+    expect(steady).toBeLessThan(healthy);
+    expect(perfect).toEqual({
+      distanceScore: 1_687,
+      itemScore: 800,
+      healthBonus: 400,
+      finishQualityIndex: 100,
+      totalScore: 2_887,
+    });
+  });
+
+  it('rounds completion vitals conservatively and ignores invalid bonus claims', () => {
+    expect(calculateValidatedScore(80, 16, { energy: 85.9, injuryRisk: 10.1 })).toBe(2_835);
+    expect(
+      calculateValidatedScore(80, 16, {
+        energy: Number.NaN,
+        injuryRisk: Number.NEGATIVE_INFINITY,
+      }),
+    ).toBe(2_487);
   });
 
   it('derives stage boundaries from the three configured stages', () => {
@@ -53,6 +87,8 @@ describe('checkpoint validation', () => {
     const first = validateCheckpoint({
       elapsedSeconds: 20,
       collectedRecoveryItems: 3,
+      energy: 82,
+      injuryRisk: 12,
       issuedAtMs: ISSUED_AT,
       expiresAtMs: EXPIRES_AT,
       receivedAtMs: ISSUED_AT + 20_000 - SERVER_START_SKEW_TOLERANCE_MS,
@@ -60,18 +96,28 @@ describe('checkpoint validation', () => {
     });
     expect(first).toEqual({
       ok: true,
-      value: { elapsedSeconds: 20, collectedRecoveryItems: 3, isReplay: false },
+      value: {
+        elapsedSeconds: 20,
+        collectedRecoveryItems: 3,
+        energy: 82,
+        injuryRisk: 12,
+        isReplay: false,
+      },
     });
 
     const retry = validateCheckpoint({
       elapsedSeconds: 20,
       collectedRecoveryItems: 3,
+      energy: 82,
+      injuryRisk: 12,
       issuedAtMs: ISSUED_AT,
       expiresAtMs: EXPIRES_AT,
       receivedAtMs: ISSUED_AT + 22_000,
       previousCheckpoint: {
         elapsedSeconds: 20,
         collectedRecoveryItems: 3,
+        energy: 82,
+        injuryRisk: 12,
         receivedAtMs: ISSUED_AT + 20_000,
       },
     });
@@ -82,6 +128,8 @@ describe('checkpoint validation', () => {
     const previousCheckpoint = {
       elapsedSeconds: 20,
       collectedRecoveryItems: 3,
+      energy: 82,
+      injuryRisk: 12,
       receivedAtMs: ISSUED_AT + 20_000,
     };
     const base = {
@@ -89,6 +137,8 @@ describe('checkpoint validation', () => {
       expiresAtMs: EXPIRES_AT,
       receivedAtMs: ISSUED_AT + 30_000,
       previousCheckpoint,
+      energy: 80,
+      injuryRisk: 14,
     };
 
     expect(
@@ -109,12 +159,48 @@ describe('checkpoint validation', () => {
       }),
     ).toMatchObject({ ok: false, code: 'RUN_TOO_FAST' });
   });
+
+  it('rejects changed same-time vitals and impossible improvement without new items', () => {
+    const previousCheckpoint = {
+      elapsedSeconds: 20,
+      collectedRecoveryItems: 3,
+      energy: 60,
+      injuryRisk: 30,
+      receivedAtMs: ISSUED_AT + 20_000,
+    };
+    const base = {
+      issuedAtMs: ISSUED_AT,
+      expiresAtMs: EXPIRES_AT,
+      receivedAtMs: ISSUED_AT + 30_000,
+      previousCheckpoint,
+      collectedRecoveryItems: 3,
+    };
+
+    expect(
+      validateCheckpoint({
+        ...base,
+        elapsedSeconds: 20,
+        energy: 61,
+        injuryRisk: 30,
+      }),
+    ).toMatchObject({ ok: false, code: 'CHECKPOINT_NOT_MONOTONIC' });
+    expect(
+      validateCheckpoint({
+        ...base,
+        elapsedSeconds: 30,
+        energy: 61,
+        injuryRisk: 29,
+      }),
+    ).toMatchObject({ ok: false, code: 'IMPOSSIBLE_VITAL_DELTA' });
+  });
 });
 
 describe('finish validation', () => {
   const checkpoint = {
     elapsedSeconds: 60,
     collectedRecoveryItems: 10,
+    energy: 58,
+    injuryRisk: 26,
     receivedAtMs: ISSUED_AT + 60_000,
   };
 
@@ -122,6 +208,8 @@ describe('finish validation', () => {
     const result = validateFinish({
       elapsedSeconds: 80,
       collectedRecoveryItems: 14,
+      energy: 74,
+      injuryRisk: 18,
       outcome: 'completed',
       stageId: 'race',
       issuedAtMs: ISSUED_AT,
@@ -135,10 +223,14 @@ describe('finish validation', () => {
       value: {
         elapsedSeconds: 80,
         collectedRecoveryItems: 14,
+        energy: 74,
+        injuryRisk: 18,
         outcome: 'completed',
         stageId: 'race',
         distanceMeters: 42_195,
-        score: calculateValidatedScore(80, 14),
+        healthBonus: 312,
+        finishQualityIndex: 78,
+        score: calculateValidatedScore(80, 14, { energy: 74, injuryRisk: 18 }),
       },
     });
   });
@@ -148,6 +240,8 @@ describe('finish validation', () => {
       validateFinish({
         elapsedSeconds: 79,
         collectedRecoveryItems: 10,
+        energy: 50,
+        injuryRisk: 30,
         outcome: 'completed',
         stageId: 'race',
         issuedAtMs: ISSUED_AT,
@@ -161,6 +255,8 @@ describe('finish validation', () => {
       validateFinish({
         elapsedSeconds: 80,
         collectedRecoveryItems: 24,
+        energy: 70,
+        injuryRisk: 20,
         outcome: 'completed',
         stageId: 'race',
         issuedAtMs: ISSUED_AT,
@@ -174,6 +270,8 @@ describe('finish validation', () => {
       validateFinish({
         elapsedSeconds: 80,
         collectedRecoveryItems: 12,
+        energy: 60,
+        injuryRisk: 25,
         outcome: 'completed',
         stageId: 'race',
         issuedAtMs: ISSUED_AT,
@@ -182,6 +280,8 @@ describe('finish validation', () => {
         checkpoint: {
           elapsedSeconds: 80,
           collectedRecoveryItems: 12,
+          energy: 60,
+          injuryRisk: 25,
           receivedAtMs: ISSUED_AT + 80_000,
         },
       }),
@@ -191,6 +291,8 @@ describe('finish validation', () => {
       validateFinish({
         elapsedSeconds: 30,
         collectedRecoveryItems: 5,
+        energy: 0,
+        injuryRisk: 55,
         outcome: 'stopped',
         stageId: 'base',
         issuedAtMs: ISSUED_AT,
@@ -199,6 +301,32 @@ describe('finish validation', () => {
         checkpoint: null,
       }),
     ).toMatchObject({ ok: false, code: 'OUTCOME_STAGE_MISMATCH' });
+  });
+
+  it('rejects invalid or outcome-inconsistent finish vitals', () => {
+    const base = {
+      elapsedSeconds: 80,
+      collectedRecoveryItems: 14,
+      outcome: 'completed',
+      stageId: 'race',
+      issuedAtMs: ISSUED_AT,
+      expiresAtMs: EXPIRES_AT,
+      receivedAtMs: ISSUED_AT + 80_000,
+      checkpoint,
+    } as const;
+
+    expect(validateFinish({ ...base, energy: Number.NaN, injuryRisk: 10 })).toMatchObject({
+      ok: false,
+      code: 'INVALID_VITALS',
+    });
+    expect(validateFinish({ ...base, energy: 0, injuryRisk: 10 })).toMatchObject({
+      ok: false,
+      code: 'OUTCOME_VITALS_MISMATCH',
+    });
+    expect(validateFinish({ ...base, energy: 80, injuryRisk: 100 })).toMatchObject({
+      ok: false,
+      code: 'OUTCOME_VITALS_MISMATCH',
+    });
   });
 });
 

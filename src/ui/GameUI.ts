@@ -13,6 +13,7 @@ import {
   type HUDState,
   type HUDStatus,
   type LeaderboardRow,
+  type RunOutcome,
   type ShareMethod,
 } from './types';
 import { buildShareText, createShareCardFile, type ShareCardInput } from './shareCard';
@@ -215,7 +216,7 @@ const UI_MARKUP = `
               <ol>
                 <li><span aria-hidden="true">1</span>點畫面、右下跳躍鍵、空白鍵或↑跳躍</li>
                 <li><span aria-hidden="true">2</span>跳過障礙，收集恢復道具</li>
-                <li><span aria-hidden="true">3</span>守住體力與配速，完成三個階段</li>
+                <li><span aria-hidden="true">3</span>健康完賽有加分，保留體力並降低風險</li>
               </ol>
             </div>
 
@@ -427,7 +428,7 @@ const UI_MARKUP = `
                 <dd data-result-distance>0 公尺</dd>
               </div>
               <div>
-                <dt>本次分數</dt>
+                <dt>本次總分</dt>
                 <dd data-result-score>0</dd>
               </div>
               <div>
@@ -435,6 +436,34 @@ const UI_MARKUP = `
                 <dd data-high-score>0</dd>
               </div>
             </dl>
+
+            <section
+              class="health-finish-panel"
+              data-health-finish-panel
+              data-outcome="stopped"
+              aria-label="健康完賽結算"
+            >
+              <div class="health-finish-panel__completed" data-health-finish-completed hidden>
+                <div class="health-finish-panel__heading">
+                  <span>
+                    <span class="ui-icon ui-icon--shield" aria-hidden="true">${UI_ICONS.shield}</span>
+                    健康完賽加分
+                  </span>
+                  <strong data-health-bonus>+0</strong>
+                </div>
+                <dl class="health-finish-metrics">
+                  <div><dt>終點體力</dt><dd data-final-energy>0</dd></div>
+                  <div><dt>疲勞程度</dt><dd data-final-fatigue>100</dd></div>
+                  <div><dt>受傷風險</dt><dd data-final-risk>0</dd></div>
+                  <div><dt>狀態指數</dt><dd data-finish-quality>0</dd></div>
+                </dl>
+                <p>依本局終點狀態計算；屬遊戲指標，不是醫療評估或風險預測。</p>
+              </div>
+              <div class="health-finish-panel__stopped" data-health-finish-stopped>
+                <strong>健康完賽加分</strong>
+                <span>完成三關後才計入</span>
+              </div>
+            </section>
 
             <div class="failure-box" data-result-reason-box>
               <span data-reason-label>中途停止原因</span>
@@ -623,7 +652,7 @@ const UI_MARKUP = `
             >
               <p class="leaderboard-scroll-hint">
                 <span aria-hidden="true">↔</span>
-                左右滑動查看里程與結果
+                左右滑動查看健康加分、里程與結果
               </p>
               <table class="leaderboard-table">
                 <thead>
@@ -631,6 +660,7 @@ const UI_MARKUP = `
                     <th scope="col">排名</th>
                     <th scope="col">暱稱</th>
                     <th scope="col">分數</th>
+                    <th scope="col">健康加分</th>
                     <th scope="col">里程</th>
                     <th scope="col">結果</th>
                   </tr>
@@ -867,6 +897,10 @@ export class GameUI {
       distanceMeters: summary.distanceMeters,
       score: summary.score,
       outcome,
+      finalEnergy: summary.finalEnergy,
+      finalInjuryRisk: summary.finalInjuryRisk,
+      healthBonus: summary.healthBonus,
+      finishQualityIndex: summary.finishQualityIndex,
       stageNumber,
       totalStages,
       stageName,
@@ -890,6 +924,7 @@ export class GameUI {
     this.text('[data-failure-reason]', summary.failureReason);
     this.text('[data-education-message]', summary.educationMessage);
     this.text('[data-education-action]', summary.educationAction);
+    this.renderHealthFinishSummary(summary, outcome);
     this.renderEducationReminders(
       summary.educationReminders ?? [],
       summary.educationFocusTopic,
@@ -962,6 +997,11 @@ export class GameUI {
       row.append(nameCell);
 
       this.appendLeaderboardCell(row, this.formatNumber(entry.score), 'leaderboard-score');
+      this.appendLeaderboardCell(
+        row,
+        entry.healthBonus === null ? '舊制' : `+${this.formatNumber(entry.healthBonus)}`,
+        'leaderboard-health-bonus',
+      );
       this.appendLeaderboardCell(
         row,
         this.formatDistance(entry.distanceMeters),
@@ -1850,6 +1890,28 @@ export class GameUI {
     cell.className = className;
     cell.textContent = value;
     row.append(cell);
+  }
+
+  private renderHealthFinishSummary(summary: GameOverSummary, outcome: RunOutcome): void {
+    const panel = this.element<HTMLElement>('[data-health-finish-panel]');
+    const completedContent = this.element<HTMLElement>('[data-health-finish-completed]');
+    const stoppedContent = this.element<HTMLElement>('[data-health-finish-stopped]');
+    const completed = outcome === 'completed';
+    panel.dataset.outcome = outcome;
+    completedContent.hidden = !completed;
+    stoppedContent.hidden = completed;
+    if (!completed) return;
+
+    const energy = Math.round(this.clamp(summary.finalEnergy ?? 0, 0, 100));
+    const injuryRisk = Math.round(this.clamp(summary.finalInjuryRisk ?? 0, 0, 100));
+    const fatigue = 100 - energy;
+    const healthBonus = Math.round(this.clamp(summary.healthBonus ?? 0, 0, 999_999_999));
+    const finishQualityIndex = Math.round(this.clamp(summary.finishQualityIndex ?? 0, 0, 100));
+    this.text('[data-health-bonus]', `+${this.formatNumber(healthBonus)}`);
+    this.text('[data-final-energy]', `${this.formatNumber(energy)} / 100`);
+    this.text('[data-final-fatigue]', `${this.formatNumber(fatigue)} / 100`);
+    this.text('[data-final-risk]', `${this.formatNumber(injuryRisk)} / 100`);
+    this.text('[data-finish-quality]', `${this.formatNumber(finishQualityIndex)} / 100`);
   }
 
   private element<T extends HTMLElement = HTMLElement>(selector: string): T {

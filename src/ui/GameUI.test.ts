@@ -93,6 +93,7 @@ describe('GameUI', () => {
     ).toEqual(['基礎期', '進階期', '正式比賽']);
     expect(document.querySelector('.route-flow')?.textContent).toContain('基礎期');
     expect(document.querySelector('.route-flow')?.textContent).toContain('正式比賽');
+    expect(document.querySelector('.how-to-play')?.textContent).toContain('健康完賽有加分');
   });
 
   it('網頁最下方顯示製作者與安全的官方網站連結', () => {
@@ -410,6 +411,12 @@ describe('GameUI', () => {
     expect(document.querySelector('[data-education-message]')?.textContent).toContain('循序增加');
     expect(document.querySelector('[data-education-action]')?.textContent).toContain('其中一項');
     expect(document.querySelector<HTMLElement>('[data-new-record]')?.hidden).toBe(false);
+    expect(document.querySelector('[data-health-finish-stopped]')?.textContent).toContain(
+      '完成三關後才計入',
+    );
+    expect(document.querySelector<HTMLElement>('[data-health-finish-completed]')?.hidden).toBe(
+      true,
+    );
     expect(document.activeElement).toBe(document.querySelector('[data-testid="game-over-screen"]'));
 
     document.querySelector<HTMLButtonElement>('[data-share-button]')?.click();
@@ -525,6 +532,10 @@ describe('GameUI', () => {
       distanceMeters: 4_219,
       score: 5_000,
       highScore: 5_000,
+      finalEnergy: 76,
+      finalInjuryRisk: 14,
+      healthBonus: 412,
+      finishQualityIndex: 81,
       failureReason: '完成基礎期、進階期與正式比賽',
       educationMessage: '回到運動不只看時間，也要評估功能恢復。',
       educationAction: '把這次穩定配速的策略帶到下一次訓練。',
@@ -536,6 +547,16 @@ describe('GameUI', () => {
     expect(document.querySelector('[data-result-title]')?.textContent).toBe('恭喜順利完賽！');
     expect(document.querySelector('[data-outcome-label]')?.textContent).toBe('完成路線');
     expect(document.querySelector('[data-reason-label]')?.textContent).toBe('完賽成果');
+    expect(document.querySelector('.result-grid')?.textContent).toContain('本次總分');
+    expect(document.querySelector('[data-health-bonus]')?.textContent).toBe('+412');
+    expect(document.querySelector('[data-final-energy]')?.textContent).toBe('76 / 100');
+    expect(document.querySelector('[data-final-fatigue]')?.textContent).toBe('24 / 100');
+    expect(document.querySelector('[data-final-risk]')?.textContent).toBe('14 / 100');
+    expect(document.querySelector('[data-finish-quality]')?.textContent).toBe('81 / 100');
+    expect(document.querySelector('[data-health-finish-panel]')?.textContent).toContain(
+      '不是醫療評估',
+    );
+    expect(document.querySelector<HTMLElement>('[data-health-finish-stopped]')?.hidden).toBe(true);
     expect(document.querySelector('[data-outcome-banner]')?.getAttribute('data-outcome')).toBe(
       'completed',
     );
@@ -543,7 +564,9 @@ describe('GameUI', () => {
     document.querySelector<HTMLButtonElement>('[data-share-button]')?.click();
     await vi.waitFor(() => expect(onShare).toHaveBeenCalledOnce());
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('42.195 公里'));
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('分數 5,000｜完賽'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('總分 5,000｜健康加分 +412｜完賽'),
+    );
   });
 
   it('排行榜只顯示前 10 名、標示本人，且暱稱不會被解析為 HTML', () => {
@@ -555,6 +578,7 @@ describe('GameUI', () => {
       score: index < 2 ? 2_000 : 2_000 - (index - 1) * 100,
       distanceMeters: index < 2 ? 1_500 : 1_500 - (index - 1) * 50,
       outcome: index < 6 ? 'completed' : 'stopped',
+      healthBonus: index === 0 ? 380 : index === 1 ? 210 : null,
     }));
 
     ui.showLeaderboard(rows, 'row-2');
@@ -571,7 +595,7 @@ describe('GameUI', () => {
     expect(scrollRegion?.getAttribute('tabindex')).toBe('0');
     expect(scrollRegion?.getAttribute('aria-label')).toContain('左右滑動');
     expect(scrollRegion?.querySelector('.leaderboard-scroll-hint')?.textContent).toContain(
-      '左右滑動查看里程與結果',
+      '左右滑動查看健康加分、里程與結果',
     );
     expect(renderedRows[0]?.getAttribute('data-rank')).toBe('1');
     expect(renderedRows[2]?.getAttribute('data-rank')).toBe('3');
@@ -582,6 +606,9 @@ describe('GameUI', () => {
         3,
       ),
     ).toEqual(['#1', '#1', '#3']);
+    expect(renderedRows[0]?.querySelector('.leaderboard-health-bonus')?.textContent).toBe('+380');
+    expect(renderedRows[1]?.querySelector('.leaderboard-health-bonus')?.textContent).toBe('+210');
+    expect(renderedRows[2]?.querySelector('.leaderboard-health-bonus')?.textContent).toBe('舊制');
 
     ui.showLeaderboard([]);
     expect(document.querySelector<HTMLElement>('[data-leaderboard-empty]')?.hidden).toBe(false);

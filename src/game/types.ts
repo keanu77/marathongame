@@ -141,6 +141,14 @@ export interface GameOverResult {
   dominantObstacle: ObstacleType | null;
   distanceMeters: number;
   score: number;
+  /** 終點體力，作為健康完賽加分與疲勞顯示的依據。 */
+  finalEnergy: number;
+  /** 終點受傷風險，僅為遊戲內指標。 */
+  finalInjuryRisk: number;
+  /** 已包含在 score 內；只有完成三關時會大於 0。 */
+  healthBonus: number;
+  /** 0～100 的遊戲內健康完賽狀態指數。 */
+  finishQualityIndex: number;
   elapsedSeconds: number;
   collectedRecoveryItems: number;
   highScore: number;

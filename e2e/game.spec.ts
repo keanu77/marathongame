@@ -43,9 +43,28 @@ interface MockLeaderboardEntry {
   name: string;
   score: number;
   distanceMeters: number;
+  healthBonus: number | null;
   outcome: 'completed' | 'stopped';
   stageId: 'base' | 'build' | 'race';
 }
+
+interface MockProgressPayload {
+  token?: unknown;
+  name?: unknown;
+  elapsedSeconds?: unknown;
+  collectedRecoveryItems?: unknown;
+  energy?: unknown;
+  injuryRisk?: unknown;
+  outcome?: unknown;
+  stageId?: unknown;
+}
+
+interface MockLeaderboardRequestLog {
+  checkpoints: MockProgressPayload[];
+  finishes: MockProgressPayload[];
+}
+
+const leaderboardRequestLogs = new WeakMap<Page, MockLeaderboardRequestLog>();
 
 function fulfillJson(route: Route, body: unknown, status = 200) {
   return route.fulfill({
@@ -57,6 +76,8 @@ function fulfillJson(route: Route, body: unknown, status = 200) {
 
 async function mockLeaderboardApi(page: Page, entries: MockLeaderboardEntry[]) {
   let runSequence = 0;
+  const requestLog: MockLeaderboardRequestLog = { checkpoints: [], finishes: [] };
+  leaderboardRequestLogs.set(page, requestLog);
 
   await page.route('**/api/runs', async (route) => {
     const runId = `e2e-run-${++runSequence}`;
@@ -65,26 +86,58 @@ async function mockLeaderboardApi(page: Page, entries: MockLeaderboardEntry[]) {
         id: runId,
         token: `e2e-token-${runId}`,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        rulesVersion: 'e2e-v1',
+        rulesVersion: '2026-07-v2',
       },
     });
   });
 
   await page.route('**/api/runs/*/checkpoint', async (route) => {
+    const body = route.request().postDataJSON() as MockProgressPayload;
+    requestLog.checkpoints.push(body);
+    if (typeof body.energy !== 'number' || typeof body.injuryRisk !== 'number') {
+      await fulfillJson(
+        route,
+        { error: { code: 'INVALID_VITALS', message: '缺少體力或受傷風險。' } },
+        422,
+      );
+      return;
+    }
     await fulfillJson(route, { accepted: true });
   });
 
   await page.route('**/api/runs/*/finish', async (route) => {
-    const body = route.request().postDataJSON() as { name?: unknown };
+    const body = route.request().postDataJSON() as MockProgressPayload;
+    requestLog.finishes.push(body);
+    if (typeof body.energy !== 'number' || typeof body.injuryRisk !== 'number') {
+      await fulfillJson(
+        route,
+        { error: { code: 'INVALID_VITALS', message: '缺少終點體力或受傷風險。' } },
+        422,
+      );
+      return;
+    }
+
     const runId = new URL(route.request().url()).pathname.split('/')[3] ?? 'e2e-run';
+    const completed = body.outcome !== 'stopped';
+    const energy = Math.max(0, Math.min(100, Math.floor(body.energy)));
+    const injuryRisk = Math.max(0, Math.min(100, Math.ceil(body.injuryRisk)));
+    const healthBonus = completed ? energy * 2 + (100 - injuryRisk) * 2 : 0;
+    const collectedRecoveryItems =
+      typeof body.collectedRecoveryItems === 'number'
+        ? Math.max(0, Math.floor(body.collectedRecoveryItems))
+        : 0;
     const entry: MockLeaderboardEntry = {
       id: `entry-${runId}`,
       name:
         typeof body.name === 'string' && body.name.trim() !== '' ? body.name.trim() : '匿名跑者',
-      score: 42_195,
-      distanceMeters: 42_195,
-      outcome: 'completed',
-      stageId: 'race',
+      score: 1_687 + collectedRecoveryItems * 50 + healthBonus,
+      distanceMeters: completed ? 42_195 : 0,
+      healthBonus,
+      outcome: completed ? 'completed' : 'stopped',
+      stageId:
+        body.stageId === 'base' || body.stageId === 'build' || body.stageId === 'race'
+          ? body.stageId
+          : 'race',
     };
 
     entries.unshift(entry);
@@ -563,6 +616,15 @@ test('完成三關後顯示 42.195 公里完賽結算', async ({ page }) => {
   await expect(page.locator('[data-result-title]')).toHaveText('恭喜順利完賽！');
   await expect(page.locator('[data-result-stage]')).toHaveText('第 3 關・正式比賽');
   await expect(page.locator('[data-result-distance]')).toHaveText('42,195 公尺');
+  await expect(page.locator('[data-health-finish-panel]')).toHaveAttribute(
+    'data-outcome',
+    'completed',
+  );
+  await expect(page.locator('[data-health-bonus]')).toHaveText('+400');
+  await expect(page.locator('[data-final-energy]')).toHaveText('100 / 100');
+  await expect(page.locator('[data-final-fatigue]')).toHaveText('0 / 100');
+  await expect(page.locator('[data-final-risk]')).toHaveText('0 / 100');
+  await expect(page.locator('[data-finish-quality]')).toHaveText('100 / 100');
 });
 
 test('結算頁可展開並切換訓練、傷害與營養衛教提醒', async ({ page }) => {
@@ -665,10 +727,27 @@ test('結算成績經伺服器驗證後可跨重新載入保留', async ({ page 
   await expect(page.locator('[data-score-save-status]')).toContainText('通過伺服器驗證');
   await expect(page.locator('[data-score-save-status]')).toContainText('第 1 名');
 
+  const requestLog = leaderboardRequestLogs.get(page);
+  expect(requestLog).toBeDefined();
+  await expect.poll(() => requestLog?.checkpoints.length ?? 0).toBeGreaterThan(0);
+  expect(requestLog?.checkpoints.at(-1)).toMatchObject({
+    elapsedSeconds: 70,
+    energy: 100,
+    injuryRisk: 0,
+  });
+  expect(requestLog?.finishes.at(-1)).toMatchObject({
+    elapsedSeconds: 80,
+    energy: 100,
+    injuryRisk: 0,
+    outcome: 'completed',
+    stageId: 'race',
+  });
+
   await page.getByTestId('leaderboard-result-button').click();
   const currentRow = page.locator('[data-leaderboard-body] tr[aria-current="true"]');
   await expect(currentRow).toContainText('慢跑小明');
   await expect(currentRow).toContainText('42,195 公尺');
+  await expect(currentRow).toContainText('+400');
   await expect(currentRow).toContainText('完賽');
 
   await page.evaluate(() => localStorage.clear());

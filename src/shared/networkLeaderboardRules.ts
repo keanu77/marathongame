@@ -1,8 +1,8 @@
 import { GAME_CONFIG, MARATHON_CONFIG } from '../game/config';
 import type { MarathonStageId } from '../game/types';
 
-export const NETWORK_LEADERBOARD_RULES_VERSION = '2026-07-v1';
-export const NETWORK_LEADERBOARD_SEASON_ID = '2026-s1';
+export const NETWORK_LEADERBOARD_RULES_VERSION = '2026-07-v2';
+export const NETWORK_LEADERBOARD_SEASON_ID = '2026-s2';
 
 export const RUN_TTL_MS = 15 * 60 * 1_000;
 export const START_RATE_LIMIT = 30;
@@ -18,6 +18,22 @@ export const MAX_LEADERBOARD_NAME_UTF8_BYTES = 48;
 export const DEFAULT_LEADERBOARD_NAME = '匿名跑者';
 export const LEADERBOARD_LIMIT = 10;
 export const MAX_PENDING_RECOVERY_ITEMS_AT_CHECKPOINT = 1;
+export const COMPLETION_ENERGY_SCORE_MULTIPLIER = 2;
+export const COMPLETION_SAFETY_SCORE_MULTIPLIER = 2;
+
+const VITALS_PRECISION = 1_000;
+const VITAL_DELTA_EPSILON = 1 / VITALS_PRECISION;
+const MAX_STAGE_RECOVERY_MULTIPLIER = Math.max(
+  ...MARATHON_CONFIG.stages.map((stage) => stage.recoveryEffectMultiplier),
+);
+export const MAX_ENERGY_RECOVERY_PER_ITEM =
+  Math.max(
+    GAME_CONFIG.sleepEnergyRecovery,
+    GAME_CONFIG.nutritionEnergyRecovery,
+    ...Object.values(GAME_CONFIG.paceModes).map((pace) => pace.immediateEnergyRecovery),
+  ) * MAX_STAGE_RECOVERY_MULTIPLIER;
+export const MAX_INJURY_RISK_REDUCTION_PER_ITEM =
+  GAME_CONFIG.sleepRiskReduction * MAX_STAGE_RECOVERY_MULTIPLIER;
 
 /**
  * The public marathon distance is a progress metaphor. Dividing it by 25 keeps
@@ -31,12 +47,16 @@ export type NetworkRunOutcome = 'completed' | 'stopped';
 export interface CheckpointSnapshot {
   elapsedSeconds: number;
   collectedRecoveryItems: number;
+  energy: number;
+  injuryRisk: number;
   receivedAtMs: number;
 }
 
 export interface CheckpointValidationInput {
   elapsedSeconds: unknown;
   collectedRecoveryItems: unknown;
+  energy: unknown;
+  injuryRisk: unknown;
   issuedAtMs: number;
   expiresAtMs: number;
   receivedAtMs: number;
@@ -46,6 +66,8 @@ export interface CheckpointValidationInput {
 export interface FinishValidationInput {
   elapsedSeconds: unknown;
   collectedRecoveryItems: unknown;
+  energy: unknown;
+  injuryRisk: unknown;
   outcome: unknown;
   stageId: unknown;
   issuedAtMs: number;
@@ -57,8 +79,10 @@ export interface FinishValidationInput {
 export type NetworkRuleErrorCode =
   | 'INVALID_ELAPSED_TIME'
   | 'INVALID_ITEM_COUNT'
+  | 'INVALID_VITALS'
   | 'IMPOSSIBLE_ITEM_COUNT'
   | 'IMPOSSIBLE_ITEM_DELTA'
+  | 'IMPOSSIBLE_VITAL_DELTA'
   | 'RUN_EXPIRED'
   | 'RUN_TOO_FAST'
   | 'CHECKPOINT_NOT_MONOTONIC'
@@ -66,6 +90,7 @@ export type NetworkRuleErrorCode =
   | 'INVALID_OUTCOME'
   | 'INVALID_STAGE'
   | 'OUTCOME_STAGE_MISMATCH'
+  | 'OUTCOME_VITALS_MISMATCH'
   | 'CHECKPOINT_REQUIRED'
   | 'CHECKPOINT_INSUFFICIENT';
 
@@ -75,16 +100,35 @@ export type NetworkRuleResult<T> =
 export interface ValidatedCheckpoint {
   elapsedSeconds: number;
   collectedRecoveryItems: number;
+  energy: number;
+  injuryRisk: number;
   isReplay: boolean;
 }
 
 export interface ValidatedFinish {
   elapsedSeconds: number;
   collectedRecoveryItems: number;
+  energy: number;
+  injuryRisk: number;
   outcome: NetworkRunOutcome;
   stageId: MarathonStageId;
   distanceMeters: number;
+  healthBonus: number;
+  finishQualityIndex: number;
   score: number;
+}
+
+export interface CompletionVitals {
+  energy: number;
+  injuryRisk: number;
+}
+
+export interface ValidatedScoreBreakdown {
+  distanceScore: number;
+  itemScore: number;
+  healthBonus: number;
+  finishQualityIndex: number;
+  totalScore: number;
 }
 
 function fail<T>(code: NetworkRuleErrorCode, message: string): NetworkRuleResult<T> {
@@ -99,6 +143,43 @@ function normalizeElapsedSeconds(value: unknown): number | null {
 function normalizeItemCount(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) return null;
   return value;
+}
+
+function normalizeVital(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+    return null;
+  }
+  return Math.round(value * VITALS_PRECISION) / VITALS_PRECISION;
+}
+
+function normalizeCompletionVitals(vitals: CompletionVitals): CompletionVitals {
+  const energy = normalizeVital(vitals.energy) ?? 0;
+  const injuryRisk = normalizeVital(vitals.injuryRisk) ?? 100;
+  return {
+    energy: Math.floor(energy),
+    injuryRisk: Math.ceil(injuryRisk),
+  };
+}
+
+function validateVitalImprovement(
+  previous: Pick<CheckpointSnapshot, 'collectedRecoveryItems' | 'energy' | 'injuryRisk'>,
+  current: Pick<ValidatedCheckpoint, 'collectedRecoveryItems' | 'energy' | 'injuryRisk'>,
+): NetworkRuleResult<true> {
+  const additionalItems = current.collectedRecoveryItems - previous.collectedRecoveryItems;
+  if (additionalItems < 0) {
+    return fail('CHECKPOINT_ITEMS_NOT_MONOTONIC', '檢查點道具數不可減少。');
+  }
+
+  if (
+    current.energy - previous.energy >
+      additionalItems * MAX_ENERGY_RECOVERY_PER_ITEM + VITAL_DELTA_EPSILON ||
+    previous.injuryRisk - current.injuryRisk >
+      additionalItems * MAX_INJURY_RISK_REDUCTION_PER_ITEM + VITAL_DELTA_EPSILON
+  ) {
+    return fail('IMPOSSIBLE_VITAL_DELTA', '體力或受傷風險的改善超過道具可達上限。');
+  }
+
+  return { ok: true, value: true };
 }
 
 function isServerTimePlausible(
@@ -222,14 +303,42 @@ export function calculateValidatedDistance(elapsedSeconds: number): number {
 export function calculateValidatedScore(
   elapsedSeconds: number,
   collectedRecoveryItems: number,
+  completionVitals?: CompletionVitals,
 ): number {
+  return calculateValidatedScoreBreakdown(elapsedSeconds, collectedRecoveryItems, completionVitals)
+    .totalScore;
+}
+
+export function calculateValidatedScoreBreakdown(
+  elapsedSeconds: number,
+  collectedRecoveryItems: number,
+  completionVitals?: CompletionVitals,
+): ValidatedScoreBreakdown {
   const distanceScore = Math.floor(
     calculateValidatedDistance(elapsedSeconds) / VALIDATED_DISTANCE_METERS_PER_SCORE_POINT,
   );
   const safeItems = Number.isSafeInteger(collectedRecoveryItems)
     ? Math.max(0, collectedRecoveryItems)
     : 0;
-  return distanceScore + safeItems * GAME_CONFIG.recoveryItemScoreBonus;
+  const itemScore = safeItems * GAME_CONFIG.recoveryItemScoreBonus;
+  const normalizedVitals =
+    completionVitals === undefined ? null : normalizeCompletionVitals(completionVitals);
+  const safetyMargin = normalizedVitals === null ? 0 : 100 - normalizedVitals.injuryRisk;
+  const healthBonus =
+    normalizedVitals === null
+      ? 0
+      : normalizedVitals.energy * COMPLETION_ENERGY_SCORE_MULTIPLIER +
+        safetyMargin * COMPLETION_SAFETY_SCORE_MULTIPLIER;
+  const finishQualityIndex =
+    normalizedVitals === null ? 0 : Math.round((normalizedVitals.energy + safetyMargin) / 2);
+
+  return {
+    distanceScore,
+    itemScore,
+    healthBonus,
+    finishQualityIndex,
+    totalScore: distanceScore + itemScore + healthBonus,
+  };
 }
 
 function validateCommonProgress(
@@ -269,6 +378,11 @@ export function validateCheckpoint(
   if (!progress.ok) return progress;
 
   const { elapsedSeconds, collectedRecoveryItems } = progress.value;
+  const energy = normalizeVital(input.energy);
+  const injuryRisk = normalizeVital(input.injuryRisk);
+  if (energy === null || injuryRisk === null) {
+    return fail('INVALID_VITALS', '體力或受傷風險格式不正確。');
+  }
   if (!isServerTimePlausible(elapsedSeconds, input.issuedAtMs, input.receivedAtMs)) {
     return fail('RUN_TOO_FAST', '本次進度快於伺服器可接受的時間。');
   }
@@ -283,10 +397,19 @@ export function validateCheckpoint(
     }
     if (
       elapsedSeconds === previous.elapsedSeconds &&
-      collectedRecoveryItems !== previous.collectedRecoveryItems
+      (collectedRecoveryItems !== previous.collectedRecoveryItems ||
+        energy !== previous.energy ||
+        injuryRisk !== previous.injuryRisk)
     ) {
       return fail('CHECKPOINT_NOT_MONOTONIC', '相同時間的重送必須具有相同進度。');
     }
+
+    const vitalImprovement = validateVitalImprovement(previous, {
+      collectedRecoveryItems,
+      energy,
+      injuryRisk,
+    });
+    if (!vitalImprovement.ok) return vitalImprovement;
   }
 
   return {
@@ -294,10 +417,14 @@ export function validateCheckpoint(
     value: {
       elapsedSeconds,
       collectedRecoveryItems,
+      energy,
+      injuryRisk,
       isReplay:
         previous !== null &&
         elapsedSeconds === previous.elapsedSeconds &&
-        collectedRecoveryItems === previous.collectedRecoveryItems,
+        collectedRecoveryItems === previous.collectedRecoveryItems &&
+        energy === previous.energy &&
+        injuryRisk === previous.injuryRisk,
     },
   };
 }
@@ -315,12 +442,24 @@ export function validateFinish(input: FinishValidationInput): NetworkRuleResult<
   if (!progress.ok) return progress;
 
   const { elapsedSeconds, collectedRecoveryItems } = progress.value;
+  const energy = normalizeVital(input.energy);
+  const injuryRisk = normalizeVital(input.injuryRisk);
+  if (energy === null || injuryRisk === null) {
+    return fail('INVALID_VITALS', '體力或受傷風險格式不正確。');
+  }
   if (!isServerTimePlausible(elapsedSeconds, input.issuedAtMs, input.receivedAtMs)) {
     return fail('RUN_TOO_FAST', '本次結算快於伺服器可接受的時間。');
   }
 
   if (input.outcome !== 'completed' && input.outcome !== 'stopped') {
     return fail('INVALID_OUTCOME', '結算狀態格式不正確。');
+  }
+
+  if (
+    (input.outcome === 'completed' && (energy <= 0 || injuryRisk >= 100)) ||
+    (input.outcome === 'stopped' && energy > 0 && injuryRisk < 100)
+  ) {
+    return fail('OUTCOME_VITALS_MISMATCH', '結算狀態與終點體力或受傷風險不一致。');
   }
   if (input.stageId !== 'base' && input.stageId !== 'build' && input.stageId !== 'race') {
     return fail('INVALID_STAGE', '關卡格式不正確。');
@@ -354,15 +493,34 @@ export function validateFinish(input: FinishValidationInput): NetworkRuleResult<
     return fail('OUTCOME_STAGE_MISMATCH', '中途停止狀態與遊戲時間或關卡不一致。');
   }
 
+  if (input.checkpoint !== null) {
+    const vitalImprovement = validateVitalImprovement(input.checkpoint, {
+      collectedRecoveryItems,
+      energy,
+      injuryRisk,
+    });
+    if (!vitalImprovement.ok) return vitalImprovement;
+  }
+
+  const scoreBreakdown = calculateValidatedScoreBreakdown(
+    elapsedSeconds,
+    collectedRecoveryItems,
+    input.outcome === 'completed' ? { energy, injuryRisk } : undefined,
+  );
+
   return {
     ok: true,
     value: {
       elapsedSeconds,
       collectedRecoveryItems,
+      energy,
+      injuryRisk,
       outcome: input.outcome,
       stageId: input.stageId,
       distanceMeters: calculateValidatedDistance(elapsedSeconds),
-      score: calculateValidatedScore(elapsedSeconds, collectedRecoveryItems),
+      healthBonus: scoreBreakdown.healthBonus,
+      finishQualityIndex: scoreBreakdown.finishQualityIndex,
+      score: scoreBreakdown.totalScore,
     },
   };
 }

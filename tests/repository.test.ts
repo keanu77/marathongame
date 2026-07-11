@@ -82,6 +82,7 @@ describe('D1 leaderboard ranking queries', () => {
         distance_meters: 42_195,
         outcome: 'completed',
         stage_id: 'race',
+        health_bonus: 320,
         created_at_ms: 1,
       },
     ];
@@ -126,6 +127,7 @@ describe('D1 idempotent finish reads', () => {
       distance_meters: 25_000,
       outcome: 'stopped',
       stage_id: 'build',
+      health_bonus: 0,
       created_at_ms: 123,
     };
     const db = new CapturingDatabase(row);

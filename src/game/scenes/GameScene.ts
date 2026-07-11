@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 
 import type { RunKnowledgeItem } from '../../shared/education';
-import { calculateValidatedScore } from '../../shared/networkLeaderboardRules';
+import {
+  calculateValidatedScore,
+  calculateValidatedScoreBreakdown,
+} from '../../shared/networkLeaderboardRules';
 import { GAME_CONFIG, MARATHON_CONFIG } from '../config';
 import { normalizeRenderScale, type RenderScale } from '../config/gameConfig';
 import { MARATHON_STAGE_ENTRY_COPY } from '../data';
@@ -731,7 +734,26 @@ export class GameScene extends Phaser.Scene {
     const dominantObstacle = completed ? null : getDominantObstacle(this.impactCounts);
     const elapsedSeconds = this.marathonState.elapsedSeconds;
     const collectedRecoveryItems = this.progress.collectedRecoveryItems;
-    const score = calculateValidatedScore(elapsedSeconds, collectedRecoveryItems);
+    // 完賽分數採保守整數：體力無條件捨去、風險無條件進位，
+    // 並將同一組數值交給排行榜伺服器重新計算。
+    const finalEnergy = Math.floor(
+      Math.min(
+        GAME_CONFIG.maxEnergy,
+        Math.max(GAME_CONFIG.minEnergy, this.marathonState.vitals.energy),
+      ),
+    );
+    const finalInjuryRisk = Math.ceil(
+      Math.min(
+        GAME_CONFIG.maxInjuryRisk,
+        Math.max(GAME_CONFIG.minInjuryRisk, this.marathonState.vitals.injuryRisk),
+      ),
+    );
+    const scoreBreakdown = calculateValidatedScoreBreakdown(
+      elapsedSeconds,
+      collectedRecoveryItems,
+      completed ? { energy: finalEnergy, injuryRisk: finalInjuryRisk } : undefined,
+    );
+    const score = scoreBreakdown.totalScore;
     const previousHighScore = readHighScore();
     const highScore = updateHighScore(score);
     const result: GameOverResult = createGameOverResult({
@@ -743,6 +765,10 @@ export class GameScene extends Phaser.Scene {
       dominantObstacle,
       distanceMeters: this.getJourneyDistanceMeters(completed ? 1 : undefined),
       score,
+      finalEnergy,
+      finalInjuryRisk,
+      healthBonus: scoreBreakdown.healthBonus,
+      finishQualityIndex: scoreBreakdown.finishQualityIndex,
       elapsedSeconds,
       collectedRecoveryItems,
       knowledgeReview: this.knowledgeReview,
@@ -763,8 +789,10 @@ export class GameScene extends Phaser.Scene {
         this.marathonState.elapsedSeconds,
         this.progress.collectedRecoveryItems,
       ),
-      energy: Math.round(this.marathonState.vitals.energy),
-      injuryRisk: Math.round(this.marathonState.vitals.injuryRisk),
+      // UI 會自行顯示為整數；保留 3 位小數給排行榜檢查點，
+      // 避免取整誤差讓合法的恢復道具被誤判為異常改善。
+      energy: Math.round(this.marathonState.vitals.energy * 1_000) / 1_000,
+      injuryRisk: Math.round(this.marathonState.vitals.injuryRisk * 1_000) / 1_000,
       speed: Math.round(this.progress.speed),
       difficultyLevel: this.progress.difficultyLevel,
       stageId: stage.stageId,

@@ -16,6 +16,11 @@ export interface ShareCardInput {
   distanceMeters: number;
   score: number;
   outcome: ShareCardOutcome;
+  finalEnergy?: number;
+  finalInjuryRisk?: number;
+  /** 已包含在 score 內；只在完成三關時顯示。 */
+  healthBonus?: number;
+  finishQualityIndex?: number;
   /** 正整數為名次、null 為已驗證但未進前 10 名、undefined 為尚未送出。 */
   leaderboardRank?: number | null;
   stageNumber?: number;
@@ -28,6 +33,9 @@ interface ShareCardCopy {
   distanceValue: string;
   distanceUnit: '公里' | '公尺';
   score: string;
+  healthBonus: string;
+  healthBonusDetail: string;
+  finishVitals: string;
   outcomeBadge: string;
   stage: string;
   leaderboardText: string;
@@ -43,7 +51,9 @@ export function buildShareText(input: ShareCardInput): string {
 
   return [
     `${copy.nickname}在「${GAME_TITLE}」跑了 ${distance}！`,
-    `分數 ${copy.score}｜${outcome}`,
+    input.outcome === 'completed'
+      ? `總分 ${copy.score}｜健康加分 +${copy.healthBonus}｜${outcome}`
+      : `總分 ${copy.score}｜${outcome}`,
     copy.leaderboardText,
     DISCLAIMER,
   ].join('\n');
@@ -94,12 +104,21 @@ function createShareCardCopy(input: ShareCardInput): ShareCardCopy {
   );
   const leaderboardRank = normalizeLeaderboardRank(input.leaderboardRank);
   const leaderboard = createLeaderboardCopy(leaderboardRank);
+  const finalEnergy = normalizeBoundedInteger(input.finalEnergy, 0, 100);
+  const finalInjuryRisk = normalizeBoundedInteger(input.finalInjuryRisk, 0, 100);
+  const healthBonus = formatInteger(normalizeNonNegativeInteger(input.healthBonus ?? 0));
+  const finishQualityIndex = normalizeBoundedInteger(input.finishQualityIndex, 0, 100);
 
   return {
     nickname,
     distanceValue: completed ? '42.195' : formatInteger(distanceMeters),
     distanceUnit: completed ? '公里' : '公尺',
     score,
+    healthBonus,
+    healthBonusDetail: completed ? `健康加分 +${healthBonus}` : '完賽後計入健康加分',
+    finishVitals: completed
+      ? `終點體力 ${finalEnergy}｜風險 ${finalInjuryRisk}｜狀態 ${finishQualityIndex}`
+      : '完成三關後才計入健康完賽加分',
     outcomeBadge: completed ? '完賽 FINISH' : '備賽紀錄',
     stage: completed
       ? `完成 ${totalStages} 關・${stageName}`
@@ -145,9 +164,9 @@ function drawShareCard(context: CanvasRenderingContext2D, copy: ShareCardCopy): 
   drawDistanceCard(context, copy);
   drawCompactMetricCard(context, {
     x: 72,
-    label: '本次分數',
+    label: '本次總分',
     value: copy.score,
-    detail: '分',
+    detail: copy.healthBonusDetail,
     accent: '#f27d68',
   });
   drawCompactMetricCard(context, {
@@ -162,12 +181,11 @@ function drawShareCard(context: CanvasRenderingContext2D, copy: ShareCardCopy): 
   fillElevatedRoundedRect(context, 72, 790, 936, 92, 24);
   context.fillStyle = '#ffffff';
   context.textAlign = 'left';
-  context.font = fittedFont(context, copy.stage, 29, 18, 600, 800);
-  context.fillText(copy.stage, 108, 847);
-  context.textAlign = 'right';
-  context.font = font(20, 700);
+  context.font = fittedFont(context, copy.stage, 25, 18, 840, 800);
+  context.fillText(copy.stage, 108, 826);
+  context.font = fittedFont(context, copy.finishVitals, 20, 15, 840, 700);
   context.fillStyle = '#d9fff8';
-  context.fillText('完賽比硬撐重要', 972, 846);
+  context.fillText(copy.finishVitals, 108, 860);
 
   context.textAlign = 'center';
   context.fillStyle = '#ffffff';
@@ -461,6 +479,15 @@ function normalizeText(
 
 function normalizeNonNegativeInteger(value: number): number {
   return Number.isFinite(value) ? Math.min(MAX_SHARE_VALUE, Math.max(0, Math.round(value))) : 0;
+}
+
+function normalizeBoundedInteger(
+  value: number | null | undefined,
+  minimum: number,
+  maximum: number,
+): number {
+  if (!Number.isFinite(value)) return minimum;
+  return Math.min(maximum, Math.max(minimum, Math.round(value as number)));
 }
 
 function normalizeLeaderboardRank(value: number | null | undefined): number | null | undefined {

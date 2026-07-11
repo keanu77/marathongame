@@ -31,11 +31,15 @@ const alreadySubmittedError = () =>
 function checkpointFor(run: RunRow) {
   return run.checkpoint_elapsed_seconds === null ||
     run.checkpoint_items === null ||
+    run.checkpoint_energy === null ||
+    run.checkpoint_injury_risk === null ||
     run.checkpoint_at_ms === null
     ? null
     : {
         elapsedSeconds: run.checkpoint_elapsed_seconds,
         collectedRecoveryItems: run.checkpoint_items,
+        energy: run.checkpoint_energy,
+        injuryRisk: run.checkpoint_injury_risk,
         receivedAtMs: run.checkpoint_at_ms,
       };
 }
@@ -48,6 +52,7 @@ function publicEntry(row: EntryRow) {
     distanceMeters: row.distance_meters,
     outcome: row.outcome,
     stageId: row.stage_id,
+    healthBonus: row.health_bonus,
   };
 }
 
@@ -72,6 +77,8 @@ const handlePost: PagesHandler = (context) =>
       'name',
       'elapsedSeconds',
       'collectedRecoveryItems',
+      'energy',
+      'injuryRisk',
       'outcome',
       'stageId',
     ]);
@@ -92,6 +99,8 @@ const handlePost: PagesHandler = (context) =>
     const validation = validateFinish({
       elapsedSeconds: body.elapsedSeconds,
       collectedRecoveryItems: body.collectedRecoveryItems,
+      energy: body.energy,
+      injuryRisk: body.injuryRisk,
       outcome: body.outcome,
       stageId: body.stageId,
       issuedAtMs: run.issued_at_ms,
@@ -113,6 +122,7 @@ const handlePost: PagesHandler = (context) =>
       distanceMeters: validation.value.distanceMeters,
       outcome: validation.value.outcome,
       stageId: validation.value.stageId,
+      healthBonus: validation.value.healthBonus,
     };
     const fingerprint = await sha256Hex(
       JSON.stringify({
@@ -120,6 +130,8 @@ const handlePost: PagesHandler = (context) =>
         name,
         elapsedSeconds: validation.value.elapsedSeconds,
         collectedRecoveryItems: validation.value.collectedRecoveryItems,
+        energy: validation.value.energy,
+        injuryRisk: validation.value.injuryRisk,
         outcome: validation.value.outcome,
         stageId: validation.value.stageId,
       }),
@@ -136,6 +148,8 @@ const handlePost: PagesHandler = (context) =>
         ...entry,
         elapsedSeconds: validation.value.elapsedSeconds,
         collectedRecoveryItems: validation.value.collectedRecoveryItems,
+        energy: validation.value.energy,
+        injuryRisk: validation.value.injuryRisk,
         createdAtMs: nowMs,
       },
       fingerprint,

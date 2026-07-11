@@ -13,6 +13,7 @@ const handleGet: PagesHandler = (context) =>
       distanceMeters: row.distance_meters,
       outcome: row.outcome,
       stageId: row.stage_id,
+      healthBonus: row.health_bonus,
     }));
 
     return jsonResponse({ entries, updatedAt: new Date().toISOString() }, 200, {

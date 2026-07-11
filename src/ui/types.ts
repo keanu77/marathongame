@@ -56,6 +56,14 @@ export interface GameOverSummary {
   distanceMeters: number;
   score: number;
   highScore: number;
+  /** 終點體力；只有完成三關的成績會用於健康完賽結算。 */
+  finalEnergy?: number;
+  /** 終點受傷風險；為遊戲指標，不是醫療風險預測。 */
+  finalInjuryRisk?: number;
+  /** 已包含在 score 內的健康完賽加分。 */
+  healthBonus?: number;
+  /** 0～100 的遊戲內健康完賽狀態指數。 */
+  finishQualityIndex?: number;
   failureReason: string;
   educationMessage: string;
   educationAction: string;
@@ -84,6 +92,8 @@ export interface LeaderboardRow {
   score: number;
   distanceMeters: number;
   outcome: RunOutcome;
+  /** null 代表資料建立於健康完賽加分上線前。 */
+  healthBonus: number | null;
 }
 
 /** 新三關流程可使用的語意名稱；保留原型別避免既有整合中斷。 */

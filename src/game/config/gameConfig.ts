@@ -314,7 +314,8 @@ export const GAME_CONFIG = {
   stageTransitionDurationMs: 1_800,
   finishGateSpawnOffsetPixels: 100,
 
-  highScoreStorageKey: 'marathon-prep-runner.high-score',
+  // v2 開始納入終點體力與受傷風險，不與舊制最高分混用。
+  highScoreStorageKey: 'marathon-prep-runner.high-score.v2',
   leaderboardStorageKey: 'marathon-prep-runner.local-leaderboard',
   leaderboardMaxEntries: 10,
   leaderboardNameMaxLength: 12,

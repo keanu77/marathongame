@@ -18,7 +18,13 @@ const handlePost: PagesHandler = (context) =>
     assertSameOrigin(context.request);
     assertLeaderboardWriteEnabled(context.env);
     const body = await readJsonObject(context.request);
-    assertOnlyKeys(body, ['token', 'elapsedSeconds', 'collectedRecoveryItems']);
+    assertOnlyKeys(body, [
+      'token',
+      'elapsedSeconds',
+      'collectedRecoveryItems',
+      'energy',
+      'injuryRisk',
+    ]);
 
     const id = getRouteId(context.params);
     const nowMs = Date.now();
@@ -26,17 +32,23 @@ const handlePost: PagesHandler = (context) =>
     const validation = validateCheckpoint({
       elapsedSeconds: body.elapsedSeconds,
       collectedRecoveryItems: body.collectedRecoveryItems,
+      energy: body.energy,
+      injuryRisk: body.injuryRisk,
       issuedAtMs: run.issued_at_ms,
       expiresAtMs: run.expires_at_ms,
       receivedAtMs: nowMs,
       previousCheckpoint:
         run.checkpoint_elapsed_seconds === null ||
         run.checkpoint_items === null ||
+        run.checkpoint_energy === null ||
+        run.checkpoint_injury_risk === null ||
         run.checkpoint_at_ms === null
           ? null
           : {
               elapsedSeconds: run.checkpoint_elapsed_seconds,
               collectedRecoveryItems: run.checkpoint_items,
+              energy: run.checkpoint_energy,
+              injuryRisk: run.checkpoint_injury_risk,
               receivedAtMs: run.checkpoint_at_ms,
             },
     });
@@ -50,6 +62,8 @@ const handlePost: PagesHandler = (context) =>
         id,
         elapsedSeconds: validation.value.elapsedSeconds,
         collectedRecoveryItems: validation.value.collectedRecoveryItems,
+        energy: validation.value.energy,
+        injuryRisk: validation.value.injuryRisk,
         receivedAtMs: nowMs,
       });
       if (!updated) {

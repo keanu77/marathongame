@@ -18,6 +18,7 @@ function leaderboardEntry(overrides: Record<string, unknown> = {}): Record<strin
     distanceMeters: 42_195,
     outcome: 'completed',
     stageId: 'race',
+    healthBonus: 320,
     ...overrides,
   };
 }
@@ -33,7 +34,7 @@ describe('LeaderboardApiClient 成功流程', () => {
               id: 'run/一',
               token: 'signed-token',
               expiresAt: LATER,
-              rulesVersion: '2026-07-v1',
+              rulesVersion: '2026-07-v2',
             },
           });
         }
@@ -54,7 +55,7 @@ describe('LeaderboardApiClient 成功流程', () => {
         id: 'run/一',
         token: 'signed-token',
         expiresAt: LATER,
-        rulesVersion: '2026-07-v1',
+        rulesVersion: '2026-07-v2',
       },
     });
     await expect(
@@ -62,6 +63,8 @@ describe('LeaderboardApiClient 成功流程', () => {
         token: 'signed-token',
         elapsedSeconds: 24.5,
         collectedRecoveryItems: 3,
+        energy: 85.1236,
+        injuryRisk: 12.4564,
       }),
     ).resolves.toEqual({ accepted: true });
     await expect(
@@ -70,6 +73,8 @@ describe('LeaderboardApiClient 成功流程', () => {
         name: '  阿跑  ',
         elapsedSeconds: 80,
         collectedRecoveryItems: 9,
+        energy: 72.2222,
+        injuryRisk: 18.8888,
         outcome: 'completed',
         stageId: 'race',
       }),
@@ -104,6 +109,8 @@ describe('LeaderboardApiClient 成功流程', () => {
         token: 'signed-token',
         elapsedSeconds: 24.5,
         collectedRecoveryItems: 3,
+        energy: 85.124,
+        injuryRisk: 12.456,
       }),
     );
     expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(
@@ -111,11 +118,28 @@ describe('LeaderboardApiClient 成功流程', () => {
         token: 'signed-token',
         elapsedSeconds: 80,
         collectedRecoveryItems: 9,
+        energy: 72.222,
+        injuryRisk: 18.889,
         name: '阿跑',
         outcome: 'completed',
         stageId: 'race',
       }),
     );
+  });
+
+  it('可解析舊制排行榜的 null 健康完賽加分', async () => {
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      jsonResponse({
+        entries: [leaderboardEntry({ id: 'legacy-entry', healthBonus: null })],
+        updatedAt: NOW,
+      }),
+    );
+    const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+    await expect(client.getLeaderboard()).resolves.toEqual({
+      entries: [leaderboardEntry({ id: 'legacy-entry', healthBonus: null })],
+      updatedAt: NOW,
+    });
   });
 });
 
@@ -160,6 +184,8 @@ describe('LeaderboardApiClient 錯誤處理', () => {
         token: 'signed-token',
         elapsedSeconds: 20,
         collectedRecoveryItems: 1,
+        energy: 90,
+        injuryRisk: 10,
       }),
     ).rejects.toMatchObject({ code, status, message: expect.stringContaining(message) });
   });
@@ -179,6 +205,8 @@ describe('LeaderboardApiClient 錯誤處理', () => {
           name: '跑者',
           elapsedSeconds: 80,
           collectedRecoveryItems: 5,
+          energy: 70,
+          injuryRisk: 20,
           outcome: 'completed',
           stageId: 'race',
         })
@@ -267,6 +295,44 @@ describe('LeaderboardApiClient 錯誤處理', () => {
       code: 'network_error',
       status: null,
       message: '目前無法連線排行榜，請確認網路後再試。',
+    });
+  });
+
+  it.each([
+    ['energy', Number.NaN, 10],
+    ['energy', -0.001, 10],
+    ['energy', 100.001, 10],
+    ['injuryRisk', 90, Number.POSITIVE_INFINITY],
+    ['injuryRisk', 90, -1],
+    ['injuryRisk', 90, 101],
+  ] as const)('送出前拒絕不合法的 %s 數值', (_field, energy, injuryRisk) => {
+    const fetchMock = vi.fn(async (): Promise<Response> => jsonResponse({ accepted: true }));
+    const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+    expect(() =>
+      client.submitCheckpoint('run-1', {
+        token: 'signed-token',
+        elapsedSeconds: 20,
+        collectedRecoveryItems: 1,
+        energy,
+        injuryRisk,
+      }),
+    ).toThrowError('體力與受傷風險必須是 0～100 之間的有限數值。');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([401, -1, 1.5, '320'])('拒絕不合法的排行榜 healthBonus：%p', async (healthBonus) => {
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      jsonResponse({
+        entries: [leaderboardEntry({ healthBonus })],
+        updatedAt: NOW,
+      }),
+    );
+    const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+    await expect(client.getLeaderboard()).rejects.toMatchObject({
+      code: 'invalid_response',
+      status: null,
     });
   });
 

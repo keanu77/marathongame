@@ -11,6 +11,10 @@ const COMPLETED_RESULT: ShareCardInput = {
   distanceMeters: 12_800,
   score: 12_345,
   outcome: 'completed',
+  finalEnergy: 78,
+  finalInjuryRisk: 12,
+  healthBonus: 456,
+  finishQualityIndex: 83,
   leaderboardRank: 3,
   stageNumber: 3,
   totalStages: 3,
@@ -24,7 +28,7 @@ describe('分享成績文字', () => {
     expect(text).toContain('慢跑小明');
     expect(text).toContain('馬拉松完賽訓練');
     expect(text).toContain('42.195 公里');
-    expect(text).toContain('分數 12,345｜完賽');
+    expect(text).toContain('總分 12,345｜健康加分 +456｜完賽');
     expect(text).toContain('排行榜第 3 名');
     expect(text).toContain('不作醫療診斷或個別建議');
   });
@@ -40,7 +44,8 @@ describe('分享成績文字', () => {
     });
 
     expect(text).toContain('1,280 公尺');
-    expect(text).toContain('分數 880｜抵達第 2 關・進階期');
+    expect(text).toContain('總分 880｜抵達第 2 關・進階期');
+    expect(text).not.toContain('健康加分 +');
   });
 
   it('過長暱稱以 Unicode 字元安全截斷，非有限數值不會拋錯', () => {
@@ -61,7 +66,7 @@ describe('分享成績文字', () => {
     });
     expect(text).toContain('超級馬拉松宇宙最強長跑選手永遠不…');
     expect(text).toContain('0 公尺');
-    expect(text).toContain('分數 0');
+    expect(text).toContain('總分 0');
   });
 
   it('排行榜名次清楚區分尚未送出與已驗證但未進前 10 名', () => {
@@ -87,7 +92,7 @@ describe('分享成績文字', () => {
       leaderboardRank: Number.MAX_VALUE,
     });
 
-    expect(text).toContain('分數 999,999,999');
+    expect(text).toContain('總分 999,999,999');
     expect(text).toContain('排行榜第 999,999 名');
   });
 });
@@ -131,6 +136,16 @@ describe('分享成績卡 PNG', () => {
     expect(file?.name).toBe('marathon-finish-training-score.png');
     expect(file?.type).toBe('image/png');
     expect(context.fillText).toHaveBeenCalledWith('#3', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith(
+      '健康加分 +456',
+      expect.any(Number),
+      expect.any(Number),
+    );
+    expect(context.fillText).toHaveBeenCalledWith(
+      '終點體力 78｜風險 12｜狀態 83',
+      expect.any(Number),
+      expect.any(Number),
+    );
     expect(context.arc).toHaveBeenCalledWith(113, 74, 5.5, 0, Math.PI * 2);
     expect(context.stroke).toHaveBeenCalled();
 

@@ -64,6 +64,8 @@ const PERIODIC_CHECKPOINT_CUTOFF_SECONDS =
 interface ClientCheckpointSnapshot {
   elapsedSeconds: number;
   collectedRecoveryItems: number;
+  energy: number;
+  injuryRisk: number;
 }
 
 let sceneReady = false;
@@ -214,6 +216,10 @@ gameEventBus.on(GAME_EVENTS.gameOver, (result: GameOverResult) => {
     distanceMeters: result.distanceMeters,
     score: result.score,
     highScore: result.highScore,
+    finalEnergy: result.finalEnergy,
+    finalInjuryRisk: result.finalInjuryRisk,
+    healthBonus: result.healthBonus,
+    finishQualityIndex: result.finishQualityIndex,
     failureReason: resultDescription,
     educationMessage: result.educationMessage,
     educationAction: result.educationAction,
@@ -490,6 +496,8 @@ async function saveLatestResult(name: string): Promise<void> {
       name,
       elapsedSeconds: resultSnapshot.elapsedSeconds,
       collectedRecoveryItems: resultSnapshot.collectedRecoveryItems,
+      energy: resultSnapshot.finalEnergy,
+      injuryRisk: resultSnapshot.finalInjuryRisk,
       outcome: resultSnapshot.outcome,
       stageId: resultSnapshot.stageId,
     });
@@ -518,6 +526,7 @@ async function renderLeaderboard(): Promise<void> {
       score: entry.score,
       distanceMeters: entry.distanceMeters,
       outcome: entry.outcome,
+      healthBonus: entry.healthBonus,
     }));
     ui.showLeaderboard(rows, currentLeaderboardEntryId);
   } catch (error) {
@@ -570,6 +579,8 @@ function captureCompletionCheckpointCandidate(snapshot: HudSnapshot): void {
   latestCompletionCheckpointCandidate = {
     elapsedSeconds: snapshot.elapsedSeconds,
     collectedRecoveryItems: snapshot.collectedRecoveryItems,
+    energy: snapshot.energy,
+    injuryRisk: snapshot.injuryRisk,
   };
 }
 
@@ -589,6 +600,8 @@ function queueNetworkCheckpoint(snapshot: HudSnapshot): void {
   const generation = networkRunGeneration;
   const elapsedSeconds = snapshot.elapsedSeconds;
   const collectedRecoveryItems = snapshot.collectedRecoveryItems;
+  const energy = snapshot.energy;
+  const injuryRisk = snapshot.injuryRisk;
   checkpointQueue = checkpointQueue
     .then(async () => {
       if (generation !== networkRunGeneration) return;
@@ -605,6 +618,8 @@ function queueNetworkCheckpoint(snapshot: HudSnapshot): void {
         token: session.token,
         elapsedSeconds,
         collectedRecoveryItems,
+        energy,
+        injuryRisk,
       });
       if (generation === networkRunGeneration) {
         lastCheckpointElapsedSeconds = elapsedSeconds;
@@ -650,6 +665,8 @@ async function submitFinalCheckpoint(
     checkpoint = {
       elapsedSeconds: result.elapsedSeconds,
       collectedRecoveryItems: result.collectedRecoveryItems,
+      energy: result.finalEnergy,
+      injuryRisk: result.finalInjuryRisk,
     };
   }
 
@@ -659,6 +676,8 @@ async function submitFinalCheckpoint(
     token: session.token,
     elapsedSeconds: checkpoint.elapsedSeconds,
     collectedRecoveryItems: checkpoint.collectedRecoveryItems,
+    energy: checkpoint.energy,
+    injuryRisk: checkpoint.injuryRisk,
   });
   if (generation === networkRunGeneration) {
     lastCheckpointElapsedSeconds = checkpoint.elapsedSeconds;

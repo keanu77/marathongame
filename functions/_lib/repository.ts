@@ -12,6 +12,8 @@ export interface RunRow {
   status: 'issued' | 'submitted';
   checkpoint_elapsed_seconds: number | null;
   checkpoint_items: number | null;
+  checkpoint_energy: number | null;
+  checkpoint_injury_risk: number | null;
   checkpoint_at_ms: number | null;
   submitted_at_ms: number | null;
   finish_fingerprint: string | null;
@@ -24,6 +26,7 @@ export interface EntryRow {
   distance_meters: number;
   outcome: NetworkRunOutcome;
   stage_id: MarathonStageId;
+  health_bonus: number | null;
   created_at_ms: number;
 }
 
@@ -36,6 +39,9 @@ export interface NewEntry {
   collectedRecoveryItems: number;
   outcome: NetworkRunOutcome;
   stageId: MarathonStageId;
+  energy: number;
+  injuryRisk: number;
+  healthBonus: number;
   createdAtMs: number;
 }
 
@@ -101,7 +107,8 @@ export function getRun(db: D1DatabaseLike, id: string): Promise<RunRow | null> {
   return db
     .prepare(
       `SELECT id, token_hash, rules_version, issued_at_ms, expires_at_ms, status,
-              checkpoint_elapsed_seconds, checkpoint_items, checkpoint_at_ms,
+              checkpoint_elapsed_seconds, checkpoint_items, checkpoint_energy,
+              checkpoint_injury_risk, checkpoint_at_ms,
               submitted_at_ms, finish_fingerprint
        FROM leaderboard_runs WHERE id = ?`,
     )
@@ -112,7 +119,8 @@ export function getRun(db: D1DatabaseLike, id: string): Promise<RunRow | null> {
 export function getEntry(db: D1DatabaseLike, id: string): Promise<EntryRow | null> {
   return db
     .prepare(
-      `SELECT run_id AS id, name, score, distance_meters, outcome, stage_id, created_at_ms
+      `SELECT run_id AS id, name, score, distance_meters, outcome, stage_id,
+              health_bonus, created_at_ms
        FROM leaderboard_entries WHERE run_id = ?`,
     )
     .bind(id)
@@ -125,13 +133,16 @@ export async function updateCheckpoint(
     id: string;
     elapsedSeconds: number;
     collectedRecoveryItems: number;
+    energy: number;
+    injuryRisk: number;
     receivedAtMs: number;
   },
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE leaderboard_runs
-       SET checkpoint_elapsed_seconds = ?, checkpoint_items = ?, checkpoint_at_ms = ?
+       SET checkpoint_elapsed_seconds = ?, checkpoint_items = ?, checkpoint_energy = ?,
+           checkpoint_injury_risk = ?, checkpoint_at_ms = ?
        WHERE id = ? AND status = 'issued'
          AND (checkpoint_elapsed_seconds IS NULL OR checkpoint_elapsed_seconds < ?)
          AND (checkpoint_items IS NULL OR checkpoint_items <= ?)`,
@@ -139,6 +150,8 @@ export async function updateCheckpoint(
     .bind(
       input.elapsedSeconds,
       input.collectedRecoveryItems,
+      input.energy,
+      input.injuryRisk,
       input.receivedAtMs,
       input.id,
       input.elapsedSeconds,
@@ -165,8 +178,8 @@ export async function commitFinishedRun(
       .prepare(
         `INSERT INTO leaderboard_entries
          (run_id, name, score, distance_meters, elapsed_seconds, collected_items,
-          outcome, stage_id, created_at_ms)
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+          outcome, stage_id, final_energy, final_injury_risk, health_bonus, created_at_ms)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE EXISTS (
            SELECT 1 FROM leaderboard_runs
            WHERE id = ? AND status = 'submitted' AND finish_fingerprint = ?
@@ -184,6 +197,9 @@ export async function commitFinishedRun(
         entry.collectedRecoveryItems,
         entry.outcome,
         entry.stageId,
+        entry.energy,
+        entry.injuryRisk,
+        entry.healthBonus,
         entry.createdAtMs,
         entry.id,
         fingerprint,
@@ -216,7 +232,8 @@ export async function getEntryRank(db: D1DatabaseLike, id: string): Promise<numb
 export async function listLeaderboard(db: D1DatabaseLike, limit: number): Promise<EntryRow[]> {
   const result = await db
     .prepare(
-      `SELECT run_id AS id, name, score, distance_meters, outcome, stage_id, created_at_ms
+      `SELECT run_id AS id, name, score, distance_meters, outcome, stage_id,
+              health_bonus, created_at_ms
        FROM leaderboard_entries
        ORDER BY outcome ASC,
                 score DESC,
