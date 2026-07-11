@@ -47,6 +47,7 @@ declare global {
       }> | null;
       getStageTransitionTextResolutions: () => number[];
       setStage: (stageId: MarathonStageId) => void;
+      setStageProgress: (stageId: MarathonStageId, progress: number) => void;
       getMusicState: () => MusicPlaybackState;
       showFeedback: (kind: 'injury' | 'nutrition' | 'education') => void;
       setHudStatusCount: (count: 0 | 3) => void;
@@ -307,6 +308,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     },
     getStageTransitionTextResolutions: () => getScene()?.getStageTransitionTextResolutions() ?? [],
     setStage: (stageId) => getScene()?.forceStage(stageId),
+    setStageProgress: (stageId, progress) => getScene()?.forceStageProgress(stageId, progress),
     getMusicState: () => soundManager.getMusicState(),
     showFeedback: (kind) => {
       const feedback: GameFeedback =

@@ -1,17 +1,13 @@
 import Phaser from 'phaser';
 
+import {
+  getBackdropLighting,
+  normalizeBackdropProgress,
+  type BackdropLighting,
+} from '../config/backdropLighting';
 import type { MarathonStageId } from '../types';
 
 type SceneryLayer = 'atmosphere' | 'far' | 'middle' | 'near' | 'ground' | 'lane';
-
-interface StagePalette {
-  skyTop: number;
-  skyBottom: number;
-  sun: number;
-  sunGlow: number;
-  horizon: number;
-  horizonAccent: number;
-}
 
 interface SunLayout {
   x: number;
@@ -19,41 +15,34 @@ interface SunLayout {
   radius: number;
 }
 
-const STAGE_PALETTES: Record<MarathonStageId, StagePalette> = {
-  base: {
-    skyTop: 0x74d4e8,
-    skyBottom: 0xf4e9bd,
-    sun: 0xffc857,
-    sunGlow: 0xffe7a0,
-    horizon: 0x276d61,
-    horizonAccent: 0x86c96c,
-  },
-  build: {
-    skyTop: 0x67b7e8,
-    skyBottom: 0xe7f2fb,
-    sun: 0xffe49a,
-    sunGlow: 0xfff5cb,
-    horizon: 0x2d6080,
-    horizonAccent: 0x79c5d8,
-  },
-  race: {
-    skyTop: 0x574777,
-    skyBottom: 0xffbb72,
-    sun: 0xff7a45,
-    sunGlow: 0xffb56b,
-    horizon: 0x633b58,
-    horizonAccent: 0xffc44f,
-  },
-};
-
 const SUN_LAYOUTS: Record<MarathonStageId, SunLayout> = {
   base: { x: 100, y: 194, radius: 32 },
   build: { x: 456, y: 108, radius: 28 },
-  race: { x: 432, y: 224, radius: 42 },
+  race: { x: 104, y: 178, radius: 34 },
 };
 
 const TEXTURE_WIDTH = 720;
 const SKY_GRADIENT_BANDS = 64;
+const LIGHTING_PROGRESS_STEPS = 64;
+const NIGHT_STARS = [
+  { x: 38, y: 92, radius: 1.5 },
+  { x: 76, y: 142, radius: 2.2 },
+  { x: 126, y: 68, radius: 1.3 },
+  { x: 172, y: 184, radius: 1.7 },
+  { x: 212, y: 112, radius: 2.4 },
+  { x: 264, y: 62, radius: 1.4 },
+  { x: 304, y: 162, radius: 1.8 },
+  { x: 348, y: 94, radius: 1.2 },
+  { x: 390, y: 208, radius: 2.1 },
+  { x: 438, y: 72, radius: 1.5 },
+  { x: 492, y: 190, radius: 1.7 },
+  { x: 520, y: 112, radius: 2.3 },
+  { x: 56, y: 248, radius: 1.4 },
+  { x: 146, y: 274, radius: 2 },
+  { x: 246, y: 238, radius: 1.3 },
+  { x: 334, y: 286, radius: 1.6 },
+  { x: 466, y: 252, radius: 1.4 },
+] as const;
 
 function interpolateColor(start: number, end: number, progress: number): number {
   const startRed = (start >> 16) & 0xff;
@@ -102,6 +91,8 @@ export class WorldBackdrop {
   private readonly sky: Phaser.GameObjects.Graphics;
   private readonly sun: Phaser.GameObjects.Graphics;
   private readonly horizon: Phaser.GameObjects.Graphics;
+  private readonly timeOfDayOverlay: Phaser.GameObjects.Graphics;
+  private readonly nightSkyDetails: Phaser.GameObjects.Graphics;
   private readonly atmosphere: Phaser.GameObjects.TileSprite;
   private readonly farScenery: Phaser.GameObjects.TileSprite;
   private readonly middleScenery: Phaser.GameObjects.TileSprite;
@@ -109,9 +100,11 @@ export class WorldBackdrop {
   private readonly ground: Phaser.GameObjects.TileSprite;
   private readonly laneMarks: Phaser.GameObjects.TileSprite;
   private readonly width: number;
+  private readonly height: number;
   private readonly groundY: number;
   private readonly renderScale: number;
   private stageId: MarathonStageId = 'base';
+  private lightingProgressStep = -1;
 
   public constructor(
     private readonly scene: Phaser.Scene,
@@ -121,6 +114,7 @@ export class WorldBackdrop {
     renderScale: number,
   ) {
     this.width = width;
+    this.height = height;
     this.groundY = groundY;
     this.renderScale = Number.isFinite(renderScale) ? Math.max(1, renderScale) : 1;
     this.sky = scene.add.graphics().setDepth(-30);
@@ -177,31 +171,42 @@ export class WorldBackdrop {
       .setDepth(-9);
 
     this.horizon = scene.add.graphics().setDepth(-8);
+    // These dynamic layers sit above the cached scenery but below all gameplay
+    // entities, so the evening treatment never reduces obstacle readability.
+    this.timeOfDayOverlay = scene.add.graphics().setDepth(-7.5);
+    this.nightSkyDetails = scene.add.graphics().setDepth(-7.25);
     this.setStage('base');
   }
 
-  public setStage(stageId: MarathonStageId): void {
+  public setStage(stageId: MarathonStageId, stageProgress = 0): void {
     this.stageId = stageId;
-    const palette = STAGE_PALETTES[stageId];
-
-    this.sky.clear();
-    this.drawCanvasSafeSky(palette);
-
-    this.drawSun(stageId, palette);
+    this.lightingProgressStep = -1;
     this.atmosphere.setTexture(textureKey(stageId, 'atmosphere'));
     this.farScenery.setTexture(textureKey(stageId, 'far'));
     this.middleScenery.setTexture(textureKey(stageId, 'middle'));
     this.nearScenery.setTexture(textureKey(stageId, 'near'));
     this.ground.setTexture(textureKey(stageId, 'ground'));
     this.laneMarks.setTexture(textureKey(stageId, 'lane'));
-    this.drawHorizon(stageId, palette);
+    this.setStageProgress(stageProgress);
   }
 
   public getStage(): MarathonStageId {
     return this.stageId;
   }
 
-  public update(speed: number, deltaMs: number): void {
+  public setStageProgress(stageProgress: number): void {
+    const normalizedProgress = normalizeBackdropProgress(stageProgress);
+    const lightingProgressStep =
+      this.stageId === 'build' ? Math.round(normalizedProgress * LIGHTING_PROGRESS_STEPS) : 0;
+    if (lightingProgressStep === this.lightingProgressStep) return;
+
+    this.lightingProgressStep = lightingProgressStep;
+    const quantizedProgress = lightingProgressStep / LIGHTING_PROGRESS_STEPS;
+    this.applyLighting(getBackdropLighting(this.stageId, quantizedProgress));
+  }
+
+  public update(speed: number, deltaMs: number, stageProgress?: number): void {
+    if (stageProgress !== undefined) this.setStageProgress(stageProgress);
     const scroll = getBackdropScrollDeltas(speed, deltaMs, this.renderScale);
     this.atmosphere.tilePositionX += scroll.atmosphere;
     this.farScenery.tilePositionX += scroll.far;
@@ -211,7 +216,16 @@ export class WorldBackdrop {
     this.laneMarks.tilePositionX += scroll.lane;
   }
 
-  private drawCanvasSafeSky(palette: StagePalette): void {
+  private applyLighting(lighting: BackdropLighting): void {
+    this.sky.clear();
+    this.drawCanvasSafeSky(lighting);
+    this.drawSun(this.stageId, lighting);
+    this.drawHorizon(this.stageId, lighting);
+    this.drawTimeOfDayOverlay(lighting);
+    this.drawNightSkyDetails(lighting);
+  }
+
+  private drawCanvasSafeSky(palette: BackdropLighting): void {
     const bandHeight = Math.ceil(this.groundY / SKY_GRADIENT_BANDS);
 
     for (let index = 0; index < SKY_GRADIENT_BANDS; index += 1) {
@@ -221,33 +235,37 @@ export class WorldBackdrop {
     }
   }
 
-  private drawSun(stageId: MarathonStageId, palette: StagePalette): void {
+  private drawSun(stageId: MarathonStageId, palette: BackdropLighting): void {
     const layout = SUN_LAYOUTS[stageId];
     const x = stageId === 'base' ? layout.x : this.width - (540 - layout.x);
+    const y = stageId === 'build' ? layout.y + palette.normalizedProgress * 154 : layout.y;
+    const sunAlpha = palette.sunAlpha;
 
     this.sun.clear();
-    this.sun.fillStyle(palette.sunGlow, stageId === 'race' ? 0.22 : 0.17);
-    this.sun.fillCircle(x, layout.y, layout.radius + 34);
-    this.sun.fillStyle(palette.sunGlow, 0.3);
-    this.sun.fillCircle(x, layout.y, layout.radius + 16);
-    this.sun.fillStyle(palette.sun, 0.94);
-    this.sun.fillCircle(x, layout.y, layout.radius);
+    if (sunAlpha <= 0) return;
+
+    this.sun.fillStyle(palette.sunGlow, sunAlpha * (stageId === 'race' ? 0.24 : 0.17));
+    this.sun.fillCircle(x, y, layout.radius + 34);
+    this.sun.fillStyle(palette.sunGlow, sunAlpha * 0.32);
+    this.sun.fillCircle(x, y, layout.radius + 16);
+    this.sun.fillStyle(palette.sun, sunAlpha);
+    this.sun.fillCircle(x, y, layout.radius);
 
     if (stageId === 'build') {
-      this.sun.lineStyle(3, palette.sunGlow, 0.48);
+      this.sun.lineStyle(3, palette.sunGlow, sunAlpha * 0.48);
       for (let index = 0; index < 8; index += 1) {
         const angle = (Math.PI * 2 * index) / 8;
         this.sun.lineBetween(
           x + Math.cos(angle) * 42,
-          layout.y + Math.sin(angle) * 42,
+          y + Math.sin(angle) * 42,
           x + Math.cos(angle) * 54,
-          layout.y + Math.sin(angle) * 54,
+          y + Math.sin(angle) * 54,
         );
       }
     }
   }
 
-  private drawHorizon(stageId: MarathonStageId, palette: StagePalette): void {
+  private drawHorizon(stageId: MarathonStageId, palette: BackdropLighting): void {
     this.horizon.clear();
     this.horizon.fillStyle(palette.horizon, 1);
     this.horizon.fillRect(0, this.groundY - 7, this.width, 8);
@@ -281,6 +299,69 @@ export class WorldBackdrop {
       this.horizon.fillStyle((x / 48) % 2 === 0 ? palette.horizonAccent : 0xd94f4f, 1);
       this.horizon.fillRect(x, this.groundY - 13, 48, 6);
     }
+  }
+
+  private drawTimeOfDayOverlay(lighting: BackdropLighting): void {
+    this.timeOfDayOverlay.clear();
+    if (this.stageId !== 'build' || lighting.nightOverlayAlpha <= 0) return;
+
+    this.timeOfDayOverlay.fillStyle(0x06162d, lighting.nightOverlayAlpha);
+    this.timeOfDayOverlay.fillRect(0, 0, this.width, this.groundY);
+    this.timeOfDayOverlay.fillStyle(0x04101f, lighting.nightOverlayAlpha * 0.66);
+    this.timeOfDayOverlay.fillRect(0, this.groundY, this.width, this.height - this.groundY);
+  }
+
+  private drawNightSkyDetails(lighting: BackdropLighting): void {
+    this.nightSkyDetails.clear();
+    if (this.stageId !== 'build') return;
+
+    if (lighting.nightOverlayAlpha > 0) {
+      const floodlightAlpha = lighting.moonAlpha * 0.055;
+      this.nightSkyDetails.fillStyle(0xcfefff, floodlightAlpha);
+      this.nightSkyDetails.fillTriangle(
+        34,
+        this.groundY - 78,
+        138,
+        this.groundY - 380,
+        242,
+        this.groundY - 78,
+      );
+      this.nightSkyDetails.fillTriangle(
+        this.width - 242,
+        this.groundY - 78,
+        this.width - 138,
+        this.groundY - 380,
+        this.width - 34,
+        this.groundY - 78,
+      );
+    }
+
+    if (lighting.starsAlpha > 0) {
+      for (const [index, star] of NIGHT_STARS.entries()) {
+        const alpha = lighting.starsAlpha * (index % 3 === 0 ? 0.94 : 0.7);
+        this.nightSkyDetails.fillStyle(index % 4 === 0 ? 0xffefc2 : 0xd9edff, alpha);
+        this.nightSkyDetails.fillCircle(star.x, star.y, star.radius);
+
+        if (star.radius >= 2) {
+          this.nightSkyDetails.lineStyle(1, 0xf5fbff, alpha * 0.62);
+          this.nightSkyDetails.lineBetween(star.x - 4, star.y, star.x + 4, star.y);
+          this.nightSkyDetails.lineBetween(star.x, star.y - 4, star.x, star.y + 4);
+        }
+      }
+    }
+
+    if (lighting.moonAlpha <= 0) return;
+
+    const moonX = this.width - 102;
+    const moonY = 122;
+    this.nightSkyDetails.fillStyle(0xcfe8ff, lighting.moonAlpha * 0.14);
+    this.nightSkyDetails.fillCircle(moonX, moonY, 34);
+    this.nightSkyDetails.fillStyle(0xfff4c7, lighting.moonAlpha * 0.94);
+    this.nightSkyDetails.fillCircle(moonX, moonY, 17);
+    const skyAtMoon = interpolateColor(lighting.skyTop, lighting.skyBottom, moonY / this.groundY);
+    const overlaidSkyAtMoon = interpolateColor(skyAtMoon, 0x06162d, lighting.nightOverlayAlpha);
+    this.nightSkyDetails.fillStyle(overlaidSkyAtMoon, lighting.moonAlpha * 0.96);
+    this.nightSkyDetails.fillCircle(moonX + 8, moonY - 6, 16);
   }
 
   private createTextures(): void {
@@ -364,12 +445,12 @@ export class WorldBackdrop {
       return;
     }
 
-    graphics.fillStyle(0xffd29a, 0.17);
+    graphics.fillStyle(0xffe0a8, 0.2);
     graphics.fillRoundedRect(54, 76, 250, 8, 4);
     graphics.fillRoundedRect(388, 150, 208, 7, 4);
-    graphics.fillStyle(0xffefe0, 0.3);
+    graphics.fillStyle(0xfff5dc, 0.34);
     graphics.fillRoundedRect(160, 112, 190, 5, 3);
-    graphics.lineStyle(2, 0x493e67, 0.46);
+    graphics.lineStyle(2, 0x365f6c, 0.46);
     this.drawBird(graphics, 328, 64, 8);
     this.drawBird(graphics, 350, 76, 5);
   }
@@ -410,17 +491,17 @@ export class WorldBackdrop {
       return;
     }
 
-    graphics.fillStyle(0xb45d67, 0.36);
+    graphics.fillStyle(0x9cbfc1, 0.42);
     graphics.fillTriangle(0, 320, 178, 154, 350, 320);
     graphics.fillTriangle(290, 320, 544, 124, 720, 320);
     this.drawSkyline(
       graphics,
-      0x533b5e,
-      0.88,
+      0x526f82,
+      0.82,
       320,
       [112, 82, 158, 104, 184, 94, 136, 198, 116, 168, 90],
     );
-    graphics.fillStyle(0xffc66f, 0.58);
+    graphics.fillStyle(0xffd27c, 0.28);
     for (let x = 18; x < TEXTURE_WIDTH; x += 46) {
       graphics.fillRect(x, 234 + ((x / 46) % 3) * 16, 5, 7);
     }
@@ -453,7 +534,7 @@ export class WorldBackdrop {
       return;
     }
 
-    graphics.fillStyle(0x5b405d, 0.88);
+    graphics.fillStyle(0x4b687a, 0.86);
     for (const building of [
       { x: 0, width: 92, height: 150 },
       { x: 106, width: 74, height: 116 },
@@ -467,16 +548,16 @@ export class WorldBackdrop {
         building.height,
         4,
       );
-      graphics.fillStyle(0xffce78, 0.52);
+      graphics.fillStyle(0xffd88a, 0.3);
       for (let y = 220 - building.height + 18; y < 204; y += 26) {
         graphics.fillRect(building.x + 14, y, 9, 11);
         graphics.fillRect(building.x + 42, y, 9, 11);
       }
-      graphics.fillStyle(0x5b405d, 0.88);
+      graphics.fillStyle(0x4b687a, 0.86);
     }
     this.drawRaceBanner(graphics, 242, 90);
     this.drawRaceBanner(graphics, 402, 116);
-    graphics.fillStyle(0xc97872, 0.4);
+    graphics.fillStyle(0x77aab2, 0.42);
     graphics.fillRect(180, 202, 362, 18);
   }
 

@@ -19,6 +19,7 @@ declare global {
       }> | null;
       getStageTransitionTextResolutions: () => number[];
       setStage: (stageId: 'base' | 'build' | 'race') => void;
+      setStageProgress: (stageId: 'base' | 'build' | 'race', progress: number) => void;
       getMusicState: () => MusicPlaybackState;
       showFeedback: (kind: 'injury' | 'nutrition' | 'education') => void;
       setHudStatusCount: (count: 0 | 3) => void;
@@ -271,6 +272,34 @@ test('三關 Canvas 天空使用不同且非黑色的相容色彩', async ({ pag
     expect(sample[3]).toBe(255);
   });
   expect(new Set(samples.map((sample) => sample.slice(0, 3).join(','))).size).toBe(3);
+});
+
+test('進階期背景由下午平滑轉為黃昏與夜晚', async ({ page }) => {
+  await startGame(page);
+  await page.getByTestId('pause-button').click();
+
+  const samples: number[][] = [];
+  for (const progress of [0, 0.55, 0.95]) {
+    await page.evaluate(
+      (stageProgress) => window.__GAME_TEST__?.setStageProgress('build', stageProgress),
+      progress,
+    );
+    await page.waitForTimeout(80);
+    const sample = await gameCanvas(page).evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      return context ? [...context.getImageData(canvas.width / 2, 40, 1, 1).data] : [];
+    });
+    samples.push(sample);
+  }
+
+  const brightness = samples.map((sample) =>
+    sample.slice(0, 3).reduce((total, channel) => total + channel, 0),
+  );
+  expect(samples.every((sample) => sample.length === 4 && sample[3] === 255)).toBe(true);
+  expect(brightness[0]).toBeGreaterThan(brightness[1] ?? 0);
+  expect(brightness[1]).toBeGreaterThan(brightness[2] ?? 0);
+  expect(brightness[2]).toBeGreaterThan(25);
 });
 
 test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', async ({ page }, testInfo) => {

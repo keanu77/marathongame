@@ -271,7 +271,7 @@ export class GameScene extends Phaser.Scene {
 
     this.prepareFinishApproach();
     const effectiveSpeed = this.progress.speed;
-    this.backdrop.update(effectiveSpeed, deltaMs);
+    this.backdrop.update(effectiveSpeed, deltaMs, this.getCurrentStageProgress());
 
     if (this.finishApproachStarted) {
       this.finishGate.update(effectiveSpeed, deltaMs);
@@ -441,13 +441,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   public forceStage(stageId: MarathonStageId): void {
+    this.forceStageProgress(stageId, 0);
+  }
+
+  public forceStageProgress(stageId: MarathonStageId, stageProgress: number): void {
     if (this.runState !== 'running' && this.runState !== 'paused') return;
 
     const stageIndex = MARATHON_CONFIG.stages.findIndex((stage) => stage.id === stageId);
     if (stageIndex < 0) return;
-    const elapsedSeconds = MARATHON_CONFIG.stages
+    const stageConfig = MARATHON_CONFIG.stages[stageIndex];
+    if (!stageConfig) return;
+    const normalizedStageProgress = Number.isFinite(stageProgress)
+      ? Math.min(0.999_999, Math.max(0, stageProgress))
+      : 0;
+    const stageStartSeconds = MARATHON_CONFIG.stages
       .slice(0, stageIndex)
       .reduce((total, stage) => total + stage.durationSeconds, 0);
+    const elapsedSeconds =
+      stageStartSeconds + stageConfig.durationSeconds * normalizedStageProgress;
     const previousStageId = this.marathonState.stage.stageId;
     this.marathonState = {
       ...this.marathonState,
@@ -459,6 +470,7 @@ export class GameScene extends Phaser.Scene {
     if (previousStageId !== stageId) {
       this.handleStageChanged(stageId, stageIndex);
     } else {
+      this.backdrop.setStageProgress(this.getCurrentStageProgress());
       gameEventBus.emit(GAME_EVENTS.musicStageChanged, stageId);
       this.emitHud();
     }
@@ -545,9 +557,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private configureStage(stageId: MarathonStageId): void {
-    this.backdrop.setStage(stageId);
+    this.backdrop.setStage(stageId, this.getCurrentStageProgress());
     this.obstacleSpawner.setStage(stageId);
     this.itemSpawner.setStage(stageId);
+  }
+
+  private getCurrentStageProgress(): number {
+    const { stageElapsedSeconds, stageRemainingSeconds } = this.marathonState.stage;
+    const stageDurationSeconds = stageElapsedSeconds + stageRemainingSeconds;
+    return stageDurationSeconds > 0 ? stageElapsedSeconds / stageDurationSeconds : 1;
   }
 
   private handleStageChanged(stageId: MarathonStageId, stageIndex: number): void {
