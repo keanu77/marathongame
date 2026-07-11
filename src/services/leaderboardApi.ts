@@ -134,6 +134,16 @@ interface ServerErrorPresentation {
  * reflected into the UI.
  */
 const SERVER_ERROR_PRESENTATIONS: Readonly<Record<string, ServerErrorPresentation>> = {
+  ORIGIN_NOT_ALLOWED: {
+    statuses: [403],
+    code: 'forbidden',
+    message: '目前開啟的網址無法連線排行榜，請從正式遊戲網址重新挑戰。',
+  },
+  PREVIEW_WRITE_DISABLED: {
+    statuses: [403],
+    code: 'forbidden',
+    message: '此預覽版本不會寫入正式排行榜，請從正式遊戲網址重新挑戰。',
+  },
   CHECKPOINT_REQUIRED: {
     statuses: [422],
     code: 'unprocessable',

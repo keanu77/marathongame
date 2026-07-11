@@ -194,6 +194,23 @@ describe('LeaderboardApiClient 錯誤處理', () => {
     },
   );
 
+  it.each([
+    ['ORIGIN_NOT_ALLOWED', '目前開啟的網址無法連線排行榜'],
+    ['PREVIEW_WRITE_DISABLED', '此預覽版本不會寫入正式排行榜'],
+  ] as const)('將 %s 映射成明確且安全的網址提示', async (serverCode, message) => {
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      jsonResponse({ error: { code: serverCode, message: '不可直接顯示的伺服器文字' } }, 403),
+    );
+    const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+    await expect(client.startRun()).rejects.toMatchObject({
+      code: 'forbidden',
+      status: 403,
+      serverCode,
+      message: expect.stringContaining(message),
+    });
+  });
+
   it('保留格式正確但未知的 serverCode，且不顯示遠端 message', async () => {
     const remoteMessage = '請把 token 傳到惡意網站';
     const fetchMock = vi.fn(async (): Promise<Response> =>

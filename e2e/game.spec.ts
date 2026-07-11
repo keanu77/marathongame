@@ -148,6 +148,36 @@ test('點擊開始後進入遊戲', async ({ page }) => {
   await expect(page.getByTestId('pause-button')).toBeVisible();
 });
 
+test('開局無法取得排行榜憑證時會立即提醒', async ({ page }) => {
+  await page.route(
+    '**/api/runs',
+    async (route) => {
+      await fulfillJson(
+        route,
+        {
+          error: {
+            code: 'ORIGIN_NOT_ALLOWED',
+            message: '只接受遊戲網站送出的同源請求。',
+          },
+        },
+        403,
+      );
+    },
+    { times: 1 },
+  );
+
+  await startGame(page);
+
+  const feedback = page.getByTestId('game-feedback');
+  await expect(feedback).toContainText('排行榜未連線');
+  await expect(feedback).toContainText('正式遊戲網址');
+
+  const expectedErrors = browserErrors.get(page) ?? [];
+  expect(expectedErrors).toHaveLength(1);
+  expect(expectedErrors[0]).toContain('403');
+  browserErrors.set(page, []);
+});
+
 test('遊戲畫布存在', async ({ page }) => {
   await startGame(page);
 

@@ -6,6 +6,7 @@ import {
 } from '../../src/shared/networkLeaderboardRules';
 import {
   ApiError,
+  assertLeaderboardWriteEnabled,
   assertOnlyKeys,
   assertSameOrigin,
   jsonResponse,
@@ -23,7 +24,8 @@ import type { PagesHandler } from '../_lib/types';
 
 const handlePost: PagesHandler = (context) =>
   withApiErrors(async () => {
-    assertSameOrigin(context.request, context.env);
+    assertSameOrigin(context.request);
+    assertLeaderboardWriteEnabled(context.env);
     // 明確要求空 JSON 物件，避免不同 Fetch 實作對無 body POST 的空串流行為不一致。
     const body = await readJsonObject(context.request);
     assertOnlyKeys(body, []);

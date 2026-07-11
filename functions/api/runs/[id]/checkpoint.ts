@@ -1,6 +1,7 @@
 import { validateCheckpoint } from '../../../../src/shared/networkLeaderboardRules';
 import {
   ApiError,
+  assertLeaderboardWriteEnabled,
   assertOnlyKeys,
   assertSameOrigin,
   getRouteId,
@@ -14,7 +15,8 @@ import type { PagesHandler } from '../../../_lib/types';
 
 const handlePost: PagesHandler = (context) =>
   withApiErrors(async () => {
-    assertSameOrigin(context.request, context.env);
+    assertSameOrigin(context.request);
+    assertLeaderboardWriteEnabled(context.env);
     const body = await readJsonObject(context.request);
     assertOnlyKeys(body, ['token', 'elapsedSeconds', 'collectedRecoveryItems']);
 

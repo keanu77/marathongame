@@ -3,7 +3,7 @@ compatibility_date = "2026-07-10"
 pages_build_output_dir = "./dist"
 
 [vars]
-ALLOWED_ORIGIN = "https://marathongame.pages.dev"
+LEADERBOARD_PRODUCTION_BRANCH = "main"
 
 [[d1_databases]]
 binding = "DB"

@@ -64,15 +64,18 @@ export async function withApiErrors(operation: () => Promise<Response>): Promise
   }
 }
 
-export function assertSameOrigin(request: Request, env: Env): void {
+export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get('Origin');
-  const requestUrl = new URL(request.url);
-  const localHostnames = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
-  const expectedOrigin = localHostnames.has(requestUrl.hostname)
-    ? requestUrl.origin
-    : env.ALLOWED_ORIGIN?.trim() || requestUrl.origin;
-  if (origin === null || origin === 'null' || origin !== expectedOrigin) {
+  if (origin === null || origin === 'null' || origin !== new URL(request.url).origin) {
     throw new ApiError(403, 'ORIGIN_NOT_ALLOWED', '只接受遊戲網站送出的同源請求。');
+  }
+}
+
+export function assertLeaderboardWriteEnabled(env: Env): void {
+  const deployedBranch = env.CF_PAGES_BRANCH?.trim();
+  const productionBranch = env.LEADERBOARD_PRODUCTION_BRANCH?.trim() || 'main';
+  if (deployedBranch !== undefined && deployedBranch !== productionBranch) {
+    throw new ApiError(403, 'PREVIEW_WRITE_DISABLED', '此預覽版本不會寫入正式排行榜。');
   }
 }
 

@@ -485,6 +485,7 @@ function prepareNetworkRun(): void {
     .catch((error: unknown) => {
       if (generation === networkRunGeneration) {
         networkRunError = getNetworkErrorMessage(error);
+        ui.showFeedback(`排行榜未連線：${networkRunError}`, 'danger', 3_000);
       }
       return null;
     });

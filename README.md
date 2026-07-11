@@ -197,6 +197,7 @@ pnpm check         # 型別、lint、格式、單元測試與建置
 - `outcome`、關卡與時間必須一致；距離與分數由共用純函式重算。
 - 暱稱做 Unicode 正規化、控制字元移除、長度限制，UI 一律以 `textContent` 呈現。
 - 以每日 HMAC 化的 IP 金鑰做建立頻率限制；D1 不保存原始 IP。
+- 寫入 API 嚴格要求瀏覽器 `Origin` 與當前請求網址同源；Cloudflare production branch 的正式網址與 unique deployment 網址都可正常送分。
 
 這些措施可阻擋直接改 `localStorage`、任意改分、立即假完賽、重播和大量建立跑局等常見作弊。由於遊戲程式仍在玩家瀏覽器執行，無帳號的休閒網頁遊戲無法保證絕對防作弊；若未來要舉辦有獎競賽，應再加入 Turnstile、帳號／裝置風險控制，以及伺服器可重播的固定種子事件紀錄。
 
@@ -234,7 +235,7 @@ pnpm db:migrate:remote
 
 Git 部署不會自動執行 D1 migration，schema 變更必須先明確執行 `pnpm db:migrate:remote`。`RATE_LIMIT_SECRET` 是必要設定；未設定時 API 會安全拒絕建立跑局。
 
-`wrangler.toml` 的 `ALLOWED_ORIGIN` 目前鎖定正式 `pages.dev` 網址，因此 preview deployment 可讀取榜單但不能寫入正式榜。日後加入自訂網域時，請同步更新此值；若預覽也需要寫入，應另外建立 preview D1，不要共用正式資料庫。
+API 會比對瀏覽器 `Origin` 與實際請求網址，因此正式 `pages.dev`、production unique deployment 及未來自訂網域的同源請求都可使用。`wrangler.toml` 的 `LEADERBOARD_PRODUCTION_BRANCH` 目前為 `main`；Cloudflare 注入的 `CF_PAGES_BRANCH` 若不是正式 branch，則可讀取榜單但不能寫入正式榜。若預覽版本也需要寫入，應另外建立 preview D1，不要共用正式資料庫。
 
 ### Zeabur
 

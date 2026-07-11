@@ -22,8 +22,10 @@ export interface Env {
   DB: D1DatabaseLike;
   /** Required Cloudflare Pages secret; never commit its value. */
   RATE_LIMIT_SECRET?: string;
-  /** Optional production override; otherwise the request URL origin is used. */
-  ALLOWED_ORIGIN?: string;
+  /** Cloudflare Pages supplies the branch for production and preview deployments. */
+  CF_PAGES_BRANCH?: string;
+  /** Branch allowed to write the production leaderboard; defaults to main. */
+  LEADERBOARD_PRODUCTION_BRANCH?: string;
 }
 
 export interface PagesContext {

@@ -5,6 +5,7 @@ import {
 } from '../../../../src/shared/networkLeaderboardRules';
 import {
   ApiError,
+  assertLeaderboardWriteEnabled,
   assertOnlyKeys,
   assertSameOrigin,
   getRouteId,
@@ -63,7 +64,8 @@ async function existingEntryResponse(db: D1DatabaseLike, id: string): Promise<Re
 
 const handlePost: PagesHandler = (context) =>
   withApiErrors(async () => {
-    assertSameOrigin(context.request, context.env);
+    assertSameOrigin(context.request);
+    assertLeaderboardWriteEnabled(context.env);
     const body = await readJsonObject(context.request);
     assertOnlyKeys(body, [
       'token',
