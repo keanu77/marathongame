@@ -8,6 +8,7 @@ declare global {
       endGame: (reason?: 'energy' | 'injuryRisk') => void;
       completeGame: () => void;
       getPlayerState: () => string;
+      getStageTransitionTextResolutions: () => number[];
       setStage: (stageId: 'base' | 'build' | 'race') => void;
       getMusicState: () => MusicPlaybackState;
       showFeedback: (kind: 'injury' | 'nutrition' | 'education') => void;
@@ -185,14 +186,58 @@ test('遊戲畫布存在', async ({ page }) => {
   const backingBuffer = await gameCanvas(page).evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
+    const declaredScale = Number(canvas.dataset.renderScale);
+    const capableNavigator = navigator as Navigator & {
+      deviceMemory?: number;
+      connection?: { saveData?: boolean };
+    };
+    const resourceConstrained =
+      capableNavigator.connection?.saveData === true ||
+      capableNavigator.hardwareConcurrency <= 4 ||
+      (typeof capableNavigator.deviceMemory === 'number' && capableNavigator.deviceMemory <= 4) ||
+      window.matchMedia('(prefers-reduced-data: reduce)').matches;
     return {
+      width: canvas.width,
+      height: canvas.height,
       horizontalRatio: canvas.width / rect.width,
       verticalRatio: canvas.height / rect.height,
+      declaredScale,
+      quality: canvas.dataset.renderQuality,
       targetRatio: Math.min(2, window.devicePixelRatio),
+      resourceConstrained,
     };
   });
-  expect(backingBuffer.horizontalRatio).toBeGreaterThanOrEqual(backingBuffer.targetRatio - 0.01);
-  expect(backingBuffer.verticalRatio).toBeGreaterThanOrEqual(backingBuffer.targetRatio - 0.01);
+  expect([1, 1.5, 2]).toContain(backingBuffer.declaredScale);
+  expect(['economy', 'balanced', 'high']).toContain(backingBuffer.quality);
+  expect(backingBuffer.width).toBe(540 * backingBuffer.declaredScale);
+  expect(backingBuffer.height).toBe(960 * backingBuffer.declaredScale);
+  expect(backingBuffer.horizontalRatio).toBeGreaterThanOrEqual(backingBuffer.declaredScale - 0.01);
+  expect(backingBuffer.verticalRatio).toBeGreaterThanOrEqual(backingBuffer.declaredScale - 0.01);
+  if (!backingBuffer.resourceConstrained) {
+    expect(backingBuffer.horizontalRatio).toBeGreaterThanOrEqual(backingBuffer.targetRatio - 0.01);
+    expect(backingBuffer.verticalRatio).toBeGreaterThanOrEqual(backingBuffer.targetRatio - 0.01);
+  }
+});
+
+test('關卡進場卡片顯示時不會被完整 HUD 遮住', async ({ page }) => {
+  await startGame(page);
+
+  const hud = page.locator('.hud-layer');
+  const stageHud = page.locator('.stage-hud');
+  await expect(hud).toHaveAttribute('data-stage-transition', 'true');
+  await expect
+    .poll(() => stageHud.evaluate((element) => getComputedStyle(element).opacity))
+    .toBe('0');
+  const textResolutions = await page.evaluate(
+    () => window.__GAME_TEST__?.getStageTransitionTextResolutions() ?? [],
+  );
+  const renderScale = Number(await gameCanvas(page).getAttribute('data-render-scale'));
+  expect(textResolutions).toEqual(Array.from({ length: 6 }, () => renderScale));
+
+  await expect(hud).toHaveAttribute('data-stage-transition', 'false', { timeout: 3_000 });
+  await expect
+    .poll(() => stageHud.evaluate((element) => getComputedStyle(element).opacity))
+    .toBe('1');
 });
 
 test('三關 Canvas 天空使用不同且非黑色的相容色彩', async ({ page }) => {
@@ -222,6 +267,9 @@ test('三關 Canvas 天空使用不同且非黑色的相容色彩', async ({ pag
 test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', '此檢查只針對手機直式版面');
   await startGame(page);
+  await expect(page.locator('.hud-layer')).toHaveAttribute('data-stage-transition', 'false', {
+    timeout: 3_000,
+  });
 
   const compactLayout = await page.evaluate(() => {
     const frame = document.querySelector('.game-frame')?.getBoundingClientRect();

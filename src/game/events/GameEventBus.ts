@@ -5,6 +5,7 @@ export const GAME_EVENTS = {
   hudUpdated: 'hud-updated',
   feedback: 'feedback',
   runStarted: 'run-started',
+  stageTransitionChanged: 'stage-transition-changed',
   musicStageChanged: 'music-stage-changed',
   pauseChanged: 'pause-changed',
   gameOver: 'game-over',

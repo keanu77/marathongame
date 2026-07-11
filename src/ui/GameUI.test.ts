@@ -135,6 +135,7 @@ describe('GameUI', () => {
     ui = new GameUI({ root: '#app' });
 
     const coreIconSelectors = [
+      '[data-testid="start-button"] .ui-icon--play',
       '[data-testid="pause-button"] .ui-icon--pause',
       '[data-testid="sound-toggle"] .ui-icon--sound',
       '[data-energy-meter] .ui-icon--energy',
@@ -142,6 +143,10 @@ describe('GameUI', () => {
       '[data-testid="jump-button"] .ui-icon--jump',
       '[data-testid="leaderboard-home-button"] .ui-icon--leaderboard',
       '[data-testid="leaderboard-result-button"] .ui-icon--leaderboard',
+      '[data-testid="restart-button"] .ui-icon--restart',
+      '[data-share-button] .ui-icon--share',
+      '[data-download-share-card] .ui-icon--download',
+      '[data-leaderboard-close] .ui-icon--close',
     ];
 
     coreIconSelectors.forEach((selector) => {
@@ -322,6 +327,36 @@ describe('GameUI', () => {
 
     expect(region?.dataset.active).toBe('true');
     expect(region?.textContent).toContain('阻力訓練防護 5 秒');
+    expect(region?.querySelector('.status-chip')?.classList.contains('status-chip--entering')).toBe(
+      true,
+    );
+
+    ui.updateHUD({
+      statuses: [
+        {
+          id: 'strength-protection',
+          label: '阻力訓練防護',
+          remainingSeconds: 3.2,
+          tone: 'positive',
+        },
+      ],
+    });
+
+    expect(region?.textContent).toContain('阻力訓練防護 4 秒');
+    expect(region?.querySelector('.status-chip')?.classList.contains('status-chip--entering')).toBe(
+      false,
+    );
+  });
+
+  it('關卡進場提示期間標記 HUD，結束後可恢復完整資訊', () => {
+    ui = new GameUI({ root: '#app' });
+    const hud = document.querySelector<HTMLElement>('.hud-layer');
+
+    ui.setStageTransitionActive(true);
+    expect(hud?.dataset.stageTransition).toBe('true');
+
+    ui.setStageTransitionActive(false);
+    expect(hud?.dataset.stageTransition).toBe('false');
   });
 
   it('受傷與補給回饋使用獨立即時提示並在顯示時間結束後清除', () => {
@@ -531,6 +566,16 @@ describe('GameUI', () => {
     expect(renderedRows[1]?.getAttribute('data-current')).toBe('true');
     expect(renderedRows[1]?.textContent).toContain('你');
     expect(document.querySelectorAll('.leaderboard-outcome')).toHaveLength(10);
+    expect(document.querySelectorAll('.leaderboard-rank__medal')).toHaveLength(3);
+    const scrollRegion = document.querySelector<HTMLElement>('[data-leaderboard-table]');
+    expect(scrollRegion?.getAttribute('tabindex')).toBe('0');
+    expect(scrollRegion?.getAttribute('aria-label')).toContain('左右滑動');
+    expect(scrollRegion?.querySelector('.leaderboard-scroll-hint')?.textContent).toContain(
+      '左右滑動查看里程與結果',
+    );
+    expect(renderedRows[0]?.getAttribute('data-rank')).toBe('1');
+    expect(renderedRows[2]?.getAttribute('data-rank')).toBe('3');
+    expect(renderedRows[2]?.getAttribute('style')).toContain('--leaderboard-row-index: 2');
     expect(
       Array.from(document.querySelectorAll('.leaderboard-rank'), (cell) => cell.textContent).slice(
         0,

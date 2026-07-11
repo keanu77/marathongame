@@ -111,31 +111,24 @@ function createShareCardCopy(input: ShareCardInput): ShareCardCopy {
 function drawShareCard(context: CanvasRenderingContext2D, copy: ShareCardCopy): void {
   const background = context.createLinearGradient(0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
   background.addColorStop(0, '#102a43');
-  background.addColorStop(1, '#174f59');
+  background.addColorStop(0.54, '#13435a');
+  background.addColorStop(1, '#176457');
   context.fillStyle = background;
   context.fillRect(0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
 
-  context.save();
-  context.globalAlpha = 0.2;
-  context.fillStyle = '#64d8c7';
-  context.beginPath();
-  context.arc(1_005, 75, 220, 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = '#f27d68';
-  context.beginPath();
-  context.arc(52, 1_030, 190, 0, Math.PI * 2);
-  context.fill();
-  context.restore();
+  drawBackdropMotif(context);
+  drawShareCardFrame(context);
 
   drawRouteLine(context);
+  drawRunnerEmblem(context, 72, 58);
 
   context.fillStyle = '#ffffff';
-  context.font = font(48, 800);
+  context.font = font(46, 800);
   context.textAlign = 'left';
-  context.fillText(GAME_TITLE, 72, 92);
+  context.fillText(GAME_TITLE, 154, 94);
   context.fillStyle = '#a8eee3';
-  context.font = font(24, 700);
-  context.fillText('循序累積・聰明恢復・一路跑完正式比賽', 74, 136);
+  context.font = font(23, 700);
+  context.fillText('循序累積・聰明恢復・一路跑完正式比賽', 154, 136);
 
   context.fillStyle = copy.outcomeBadge.startsWith('完賽') ? '#f27d68' : '#21a99a';
   fillRoundedRect(context, 770, 60, 238, 68, 34);
@@ -166,7 +159,7 @@ function drawShareCard(context: CanvasRenderingContext2D, copy: ShareCardCopy): 
   });
 
   context.fillStyle = '#21a99a';
-  fillRoundedRect(context, 72, 790, 936, 92, 24);
+  fillElevatedRoundedRect(context, 72, 790, 936, 92, 24);
   context.fillStyle = '#ffffff';
   context.textAlign = 'left';
   context.font = fittedFont(context, copy.stage, 29, 18, 600, 800);
@@ -215,11 +208,82 @@ function drawRouteLine(context: CanvasRenderingContext2D): void {
   context.restore();
 }
 
+function drawBackdropMotif(context: CanvasRenderingContext2D): void {
+  context.save();
+  context.globalAlpha = 0.18;
+  context.fillStyle = '#64d8c7';
+  context.beginPath();
+  context.arc(1_005, 75, 220, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = '#f27d68';
+  context.beginPath();
+  context.arc(52, 1_030, 190, 0, Math.PI * 2);
+  context.fill();
+
+  context.globalAlpha = 0.1;
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = 4;
+  context.lineCap = 'round';
+  for (let lane = 0; lane < 3; lane += 1) {
+    const offset = lane * 54;
+    context.beginPath();
+    context.moveTo(-80, 770 + offset);
+    context.quadraticCurveTo(340, 590 + offset, 1_160, 735 + offset);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawShareCardFrame(context: CanvasRenderingContext2D): void {
+  context.save();
+  context.strokeStyle = 'rgba(255,255,255,0.2)';
+  context.lineWidth = 3;
+  strokeRoundedRect(context, 32, 32, 1_016, 1_016, 42);
+  context.restore();
+}
+
+function drawRunnerEmblem(context: CanvasRenderingContext2D, x: number, y: number): void {
+  context.save();
+  context.fillStyle = 'rgba(255,255,255,0.96)';
+  fillRoundedRect(context, x, y, 64, 64, 19);
+
+  context.fillStyle = '#f28b43';
+  context.beginPath();
+  context.arc(x + 41, y + 16, 5.5, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = '#176f82';
+  context.lineWidth = 5;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.beginPath();
+  context.moveTo(x + 37, y + 24);
+  context.lineTo(x + 27, y + 37);
+  context.lineTo(x + 38, y + 43);
+  context.moveTo(x + 33, y + 29);
+  context.lineTo(x + 47, y + 34);
+  context.lineTo(x + 54, y + 29);
+  context.moveTo(x + 37, y + 43);
+  context.lineTo(x + 51, y + 51);
+  context.moveTo(x + 35, y + 42);
+  context.lineTo(x + 25, y + 54);
+  context.stroke();
+
+  context.strokeStyle = '#f28b43';
+  context.lineWidth = 3;
+  context.beginPath();
+  context.moveTo(x + 13, y + 51);
+  context.lineTo(x + 26, y + 51);
+  context.stroke();
+  context.restore();
+}
+
 function drawDistanceCard(context: CanvasRenderingContext2D, copy: ShareCardCopy): void {
   context.fillStyle = '#f7fbfc';
-  fillRoundedRect(context, 72, 260, 936, 282, 30);
+  fillElevatedRoundedRect(context, 72, 260, 936, 282, 30);
   context.fillStyle = '#21a99a';
   fillRoundedRect(context, 72, 260, 14, 282, 7);
+  drawJourneyMotif(context);
 
   context.textAlign = 'left';
   context.fillStyle = '#466579';
@@ -244,12 +308,40 @@ function drawDistanceCard(context: CanvasRenderingContext2D, copy: ShareCardCopy
   context.fillText('從基礎期、進階期到正式比賽', 116, 505);
 }
 
+function drawJourneyMotif(context: CanvasRenderingContext2D): void {
+  context.save();
+  context.strokeStyle = '#b7d8d4';
+  context.lineWidth = 8;
+  context.lineCap = 'round';
+  context.beginPath();
+  context.moveTo(770, 430);
+  context.quadraticCurveTo(820, 315, 887, 365);
+  context.quadraticCurveTo(925, 392, 958, 330);
+  context.stroke();
+
+  for (const [x, y, color] of [
+    [770, 430, '#64d8c7'],
+    [887, 365, '#247f91'],
+    [958, 330, '#f27d68'],
+  ] as const) {
+    context.fillStyle = '#ffffff';
+    context.beginPath();
+    context.arc(x, y, 16, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(x, y, 9, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.restore();
+}
+
 function drawCompactMetricCard(
   context: CanvasRenderingContext2D,
   metric: { x: number; label: string; value: string; detail: string; accent: string },
 ): void {
   context.fillStyle = '#f7fbfc';
-  fillRoundedRect(context, metric.x, 570, 450, 188, 26);
+  fillElevatedRoundedRect(context, metric.x, 570, 450, 188, 26);
   context.fillStyle = metric.accent;
   fillRoundedRect(context, metric.x, 570, 12, 188, 6);
 
@@ -264,6 +356,24 @@ function drawCompactMetricCard(
   context.font = font(18, 700);
   context.textAlign = 'right';
   context.fillText(metric.detail, metric.x + 410, 724);
+}
+
+function fillElevatedRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const fillStyle = context.fillStyle;
+  context.save();
+  context.shadowColor = 'rgba(2,18,35,0.2)';
+  context.shadowBlur = 22;
+  context.shadowOffsetY = 10;
+  context.fillStyle = fillStyle;
+  fillRoundedRect(context, x, y, width, height, radius);
+  context.restore();
 }
 
 function createLeaderboardCopy(
@@ -312,6 +422,29 @@ function fillRoundedRect(
   context.quadraticCurveTo(x, y, x + safeRadius, y);
   context.closePath();
   context.fill();
+}
+
+function strokeRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const safeRadius = Math.min(Math.max(0, radius), width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.lineTo(x + width - safeRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  context.lineTo(x + width, y + height - safeRadius);
+  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  context.lineTo(x + safeRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  context.lineTo(x, y + safeRadius);
+  context.quadraticCurveTo(x, y, x + safeRadius, y);
+  context.closePath();
+  context.stroke();
 }
 
 function normalizeText(

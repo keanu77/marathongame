@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import type { RunKnowledgeItem } from '../../shared/education';
 import { calculateValidatedScore } from '../../shared/networkLeaderboardRules';
 import { GAME_CONFIG, MARATHON_CONFIG } from '../config';
+import { normalizeRenderScale, type RenderScale } from '../config/gameConfig';
 import { MARATHON_STAGE_ENTRY_COPY } from '../data';
 import { FinishGate } from '../entities/FinishGate';
 import type { Obstacle } from '../entities/Obstacle';
@@ -114,20 +115,23 @@ export class GameScene extends Phaser.Scene {
   private tutorialGateRemainingMs = 0;
   private finishApproachStarted = false;
 
-  public constructor() {
+  private readonly renderScale: RenderScale;
+
+  public constructor(renderScale: number = GAME_CONFIG.renderScale) {
     super({ key: GameScene.KEY });
+    this.renderScale = normalizeRenderScale(renderScale);
   }
 
   public create(): void {
     const { canvasWidth, canvasHeight, groundY } = GAME_CONFIG;
 
-    // Render the 540 × 960 logical world into a 2× backing buffer. This keeps
-    // gameplay math stable while avoiding browser upscaling on retina screens.
-    this.cameras.main.setZoom(GAME_CONFIG.renderScale);
+    // Runtime backing-buffer density is adaptive. The 540 × 960 world and all
+    // gameplay math stay unchanged regardless of the selected render scale.
+    this.cameras.main.setZoom(this.renderScale);
     this.cameras.main.centerOn(canvasWidth / 2, canvasHeight / 2);
     this.physics.world.setBounds(0, 0, canvasWidth, canvasHeight);
 
-    this.backdrop = new WorldBackdrop(this, canvasWidth, canvasHeight, groundY);
+    this.backdrop = new WorldBackdrop(this, canvasWidth, canvasHeight, groundY, this.renderScale);
     this.finishGate = new FinishGate(
       this,
       canvasWidth + GAME_CONFIG.finishGateSpawnOffsetPixels,
@@ -203,12 +207,12 @@ export class GameScene extends Phaser.Scene {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '19px',
           fontStyle: 'bold',
+          resolution: this.renderScale,
           padding: { x: 18, y: 10 },
           align: 'center',
         },
       )
       .setOrigin(0.5)
-      .setResolution(2)
       .setDepth(12)
       .setAlpha(0);
 
@@ -342,7 +346,7 @@ export class GameScene extends Phaser.Scene {
       this.startSpawnSystems();
       this.tutorialText.setAlpha(0);
     } else {
-      this.showTutorialMessage('先試著跳一下！點畫面、跳躍鍵、空白鍵或 ↑');
+      this.showTutorialMessage('先跳一下！\n點畫面或按跳躍鍵');
     }
 
     gameEventBus.emit(GAME_EVENTS.runStarted);
@@ -460,6 +464,16 @@ export class GameScene extends Phaser.Scene {
 
   public getPlayerState(): string {
     return this.player.getRunnerState();
+  }
+
+  public getStageTransitionTextResolutions(): number[] {
+    const card = this.stageTransitionCard;
+    if (!card) return [];
+
+    const cardResolutions = card.list
+      .filter((child): child is Phaser.GameObjects.Text => child instanceof Phaser.GameObjects.Text)
+      .map((text) => text.style.resolution);
+    return [this.tutorialText.style.resolution, ...cardResolutions];
   }
 
   private setIdleState(): void {
@@ -592,7 +606,7 @@ export class GameScene extends Phaser.Scene {
     if (!prefersReducedMotion()) {
       this.cameras.main.shake(
         GAME_CONFIG.cameraShakeDurationMs,
-        GAME_CONFIG.cameraShakeIntensity / GAME_CONFIG.renderScale,
+        GAME_CONFIG.cameraShakeIntensity / this.renderScale,
         false,
       );
     }
@@ -761,6 +775,7 @@ export class GameScene extends Phaser.Scene {
       .setAlpha(0)
       .setScale(prefersReducedMotion() ? 1 : 0.96);
     this.stageTransitionCard = card;
+    gameEventBus.emit(GAME_EVENTS.stageTransitionChanged, true);
 
     const surface = this.add.graphics();
     surface.fillStyle(0x17324d, 0.26);
@@ -795,51 +810,54 @@ export class GameScene extends Phaser.Scene {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '21px',
         fontStyle: 'bold',
+        resolution: this.renderScale,
       })
-      .setOrigin(0.5)
-      .setResolution(2);
+      .setOrigin(0.5);
     const counter = this.add
       .text(-122, -68, `${theme.phase}  ·  第 ${stageIndex + 1}／3 階段`, {
         color: theme.accentHex,
         fontFamily: 'system-ui, sans-serif',
         fontSize: '13px',
         fontStyle: 'bold',
+        resolution: this.renderScale,
       })
-      .setOrigin(0, 0.5)
-      .setResolution(2);
+      .setOrigin(0, 0.5);
     const title = this.add
       .text(-122, -28, copy.title, {
         color: '#ffffff',
         fontFamily: 'system-ui, sans-serif',
         fontSize: '34px',
         fontStyle: 'bold',
+        resolution: this.renderScale,
       })
-      .setOrigin(0, 0.5)
-      .setResolution(2);
+      .setOrigin(0, 0.5);
     const subtitle = this.add
       .text(-122, 12, copy.subtitle, {
         color: '#d8f5ef',
         fontFamily: 'system-ui, sans-serif',
         fontSize: '16px',
         fontStyle: 'bold',
+        resolution: this.renderScale,
         wordWrap: { width: 288 },
       })
-      .setOrigin(0, 0.5)
-      .setResolution(2);
+      .setOrigin(0, 0.5);
     const rhythm = this.add
       .text(-122, 56, theme.rhythm, {
         color: '#a9bfd2',
         fontFamily: 'system-ui, sans-serif',
         fontSize: '13px',
         fontStyle: 'bold',
+        resolution: this.renderScale,
       })
-      .setOrigin(0, 0.5)
-      .setResolution(2);
+      .setOrigin(0, 0.5);
     card.add([surface, stageNumber, counter, title, subtitle, rhythm]);
 
     const onComplete = (): void => {
       card.destroy();
-      if (this.stageTransitionCard === card) this.stageTransitionCard = undefined;
+      if (this.stageTransitionCard === card) {
+        this.stageTransitionCard = undefined;
+        gameEventBus.emit(GAME_EVENTS.stageTransitionChanged, false);
+      }
     };
 
     if (prefersReducedMotion()) {
@@ -869,6 +887,7 @@ export class GameScene extends Phaser.Scene {
 
   private clearStageTransition(): void {
     const card = this.stageTransitionCard;
+    gameEventBus.emit(GAME_EVENTS.stageTransitionChanged, false);
     if (!card) return;
 
     this.tweens.killTweensOf(card);

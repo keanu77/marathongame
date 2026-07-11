@@ -9,6 +9,7 @@ function countEvents(track: StageMusicConfig): number {
   return (
     track.melodyHz.filter((frequency) => frequency !== null).length +
     track.bassHz.filter((frequency) => frequency !== null).length +
+    track.harmonyHz.filter((frequency) => frequency !== null).length +
     track.kick.pattern.filter(Boolean).length +
     track.accent.pattern.filter(Boolean).length
   );
@@ -23,6 +24,8 @@ describe('STAGE_MUSIC_CONFIG', () => {
     for (const track of tracks) {
       expect(track.melodyHz).toHaveLength(16);
       expect(track.bassHz).toHaveLength(16);
+      expect(track.harmonyHz).toHaveLength(16);
+      expect(track.dynamics).toHaveLength(16);
       expect(track.kick.pattern).toHaveLength(16);
       expect(track.accent.pattern).toHaveLength(16);
     }
@@ -45,12 +48,13 @@ describe('STAGE_MUSIC_CONFIG', () => {
     const validWaves = ['sine', 'triangle', 'square', 'sawtooth'];
 
     for (const track of tracks) {
-      const frequencies = [...track.melodyHz, ...track.bassHz].filter(
+      const frequencies = [...track.melodyHz, ...track.bassHz, ...track.harmonyHz].filter(
         (frequency) => frequency !== null,
       );
       const stepSeconds = 60 / track.bpm / MUSIC_ENGINE_CONFIG.stepsPerBeat;
       const melodyDurationSeconds = track.melodyDurationSteps * stepSeconds;
       const bassDurationSeconds = track.bassDurationSteps * stepSeconds;
+      const harmonyDurationSeconds = track.harmonyDurationSteps * stepSeconds;
 
       expect(frequencies.length).toBeGreaterThan(0);
       for (const frequency of frequencies) {
@@ -61,17 +65,32 @@ describe('STAGE_MUSIC_CONFIG', () => {
 
       expect(validWaves).toContain(track.melodyWave);
       expect(validWaves).toContain(track.bassWave);
+      expect(validWaves).toContain(track.harmonyWave);
       expect(track.melodyVolume).toBeGreaterThan(0);
       expect(track.bassVolume).toBeGreaterThan(0);
+      expect(track.harmonyVolume).toBeGreaterThan(0);
       expect(track.kick.volume).toBeGreaterThan(0);
       expect(track.accent.volume).toBeGreaterThan(0);
       expect(
-        track.melodyVolume + track.bassVolume + track.kick.volume + track.accent.volume,
+        track.melodyVolume +
+          track.bassVolume +
+          track.harmonyVolume +
+          track.kick.volume +
+          track.accent.volume,
       ).toBeLessThanOrEqual(0.1);
       expect(melodyDurationSeconds).toBeGreaterThanOrEqual(0.08);
       expect(melodyDurationSeconds).toBeLessThanOrEqual(1);
       expect(bassDurationSeconds).toBeGreaterThanOrEqual(0.08);
       expect(bassDurationSeconds).toBeLessThanOrEqual(1);
+      expect(harmonyDurationSeconds).toBeGreaterThanOrEqual(0.08);
+      expect(harmonyDurationSeconds).toBeLessThanOrEqual(1);
+      expect(track.filterCutoffHz).toBeGreaterThanOrEqual(2_000);
+      expect(track.filterCutoffHz).toBeLessThanOrEqual(5_000);
+
+      for (const dynamic of track.dynamics) {
+        expect(dynamic).toBeGreaterThanOrEqual(0.7);
+        expect(dynamic).toBeLessThanOrEqual(1.1);
+      }
 
       for (const percussion of [track.kick, track.accent]) {
         expect(validWaves).toContain(percussion.wave);
@@ -89,13 +108,19 @@ describe('STAGE_MUSIC_CONFIG', () => {
     expect(STAGE_MUSIC_CONFIG.race.kick.pattern.filter(Boolean)).toHaveLength(10);
 
     expect(STAGE_MUSIC_CONFIG.base.bassWave).toBe('sine');
-    expect(STAGE_MUSIC_CONFIG.build.bassWave).toBe('square');
+    expect(STAGE_MUSIC_CONFIG.build.bassWave).toBe('triangle');
     expect(STAGE_MUSIC_CONFIG.race.melodyWave).toBe('sawtooth');
     expect(STAGE_MUSIC_CONFIG.base.accent.startFrequencyHz).toBeLessThan(
       STAGE_MUSIC_CONFIG.build.accent.startFrequencyHz,
     );
     expect(STAGE_MUSIC_CONFIG.build.accent.startFrequencyHz).toBeLessThan(
       STAGE_MUSIC_CONFIG.race.accent.startFrequencyHz,
+    );
+    expect(STAGE_MUSIC_CONFIG.base.filterCutoffHz).toBeLessThan(
+      STAGE_MUSIC_CONFIG.build.filterCutoffHz,
+    );
+    expect(STAGE_MUSIC_CONFIG.build.filterCutoffHz).toBeLessThan(
+      STAGE_MUSIC_CONFIG.race.filterCutoffHz,
     );
   });
 
@@ -108,5 +133,12 @@ describe('STAGE_MUSIC_CONFIG', () => {
     expect(MUSIC_ENGINE_CONFIG.crossfadeSeconds).toBeGreaterThanOrEqual(0.1);
     expect(MUSIC_ENGINE_CONFIG.crossfadeSeconds).toBeLessThanOrEqual(0.75);
     expect(MUSIC_ENGINE_CONFIG.pauseFadeSeconds).toBeGreaterThan(0);
+    expect(MUSIC_ENGINE_CONFIG.musicBusVolume).toBeGreaterThan(0);
+    expect(MUSIC_ENGINE_CONFIG.musicBusVolume).toBeLessThanOrEqual(1);
+    expect(MUSIC_ENGINE_CONFIG.effectsBusVolume).toBeGreaterThan(0);
+    expect(MUSIC_ENGINE_CONFIG.effectsBusVolume).toBeLessThanOrEqual(1);
+    expect(MUSIC_ENGINE_CONFIG.duckVolume).toBeLessThan(MUSIC_ENGINE_CONFIG.musicBusVolume);
+    expect(MUSIC_ENGINE_CONFIG.duckAttackSeconds).toBeGreaterThan(0);
+    expect(MUSIC_ENGINE_CONFIG.duckReleaseSeconds).toBeGreaterThan(0);
   });
 });

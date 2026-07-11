@@ -26,6 +26,9 @@
   --paper: #fffdf8;
   --panel: rgba(255, 253, 248, 0.94);
   --shadow: 0 18px 54px rgba(16, 33, 63, 0.2);
+  --brand-gradient: linear-gradient(135deg, #1674bb 0%, #176f82 52%, #1e8a75 100%);
+  --surface-line: rgba(110, 161, 170, 0.38);
+  --ease-out-brand: cubic-bezier(0.2, 0.72, 0.25, 1);
   --footer-space: 3.75rem;
 }
 
@@ -1792,6 +1795,15 @@ a:focus-visible {
   -webkit-overflow-scrolling: touch;
 }
 
+.leaderboard-scroll-hint {
+  display: none;
+}
+
+.leaderboard-scroll:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: -3px;
+}
+
 .leaderboard-table {
   width: 100%;
   min-width: 25rem;
@@ -2003,9 +2015,430 @@ a:focus-visible {
   text-underline-offset: 0.18em;
 }
 
+/* P1 brand polish: finite entrance motion and a shared visual language across every screen. */
+.home-screen::before,
+.home-screen::after {
+  position: absolute;
+  z-index: -1;
+  width: 78%;
+  height: 18%;
+  border: 0.1rem solid rgba(255, 255, 255, 0.34);
+  border-right-color: transparent;
+  border-left-color: transparent;
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.home-screen::before {
+  top: 9%;
+  right: -25%;
+  transform: rotate(-12deg);
+}
+
+.home-screen::after {
+  bottom: 8%;
+  left: -28%;
+  transform: rotate(10deg);
+}
+
+.home-card,
+.overlay-card {
+  position: relative;
+  border-color: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 22%), var(--panel);
+}
+
+.home-card::before,
+.result-card::before,
+.leaderboard-card::before {
+  position: absolute;
+  top: 0;
+  right: 14%;
+  left: 14%;
+  height: 0.24rem;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, var(--cyan), var(--mint), var(--yellow), var(--orange));
+  content: '';
+  pointer-events: none;
+}
+
+.game-over-screen[data-outcome='completed'] .result-card::before {
+  background: linear-gradient(90deg, #2bb895, #66d6b5, #ffd25a);
+}
+
+.runner-mark {
+  position: relative;
+  isolation: isolate;
+  box-shadow:
+    0 0.65rem 1.55rem rgba(242, 139, 67, 0.3),
+    0 0 0 0.32rem rgba(255, 255, 255, 0.22);
+}
+
+.runner-mark::after {
+  position: absolute;
+  z-index: -1;
+  right: -0.5rem;
+  bottom: -0.25rem;
+  left: -0.5rem;
+  height: 0.3rem;
+  border-radius: 50%;
+  background: rgba(21, 51, 88, 0.18);
+  content: '';
+}
+
+.stage-roadmap {
+  position: relative;
+}
+
+.stage-roadmap::before {
+  position: absolute;
+  top: 1.18rem;
+  right: 13%;
+  left: 13%;
+  height: 0.12rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4fc6cc, #4ed2a6 52%, #f2a34f);
+  content: '';
+}
+
+.stage-roadmap li {
+  z-index: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.stage-roadmap li:nth-child(2) .stage-roadmap__number {
+  background: #237f92;
+}
+
+.stage-roadmap li:nth-child(3) .stage-roadmap__number {
+  background: #d9783d;
+}
+
+.ui-icon--play .ui-icon__fill {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.button--primary {
+  background: var(--brand-gradient);
+  box-shadow:
+    0 0.55rem 1rem rgba(21, 81, 143, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.button--secondary {
+  background: linear-gradient(180deg, #f2fffb, #def4ee);
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.result-grid > div {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, #f5fbf9, #e6f3ef);
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.result-grid > div::after {
+  position: absolute;
+  right: 18%;
+  bottom: 0;
+  left: 18%;
+  height: 0.18rem;
+  border-radius: 999px 999px 0 0;
+  background: #67c8c5;
+  content: '';
+}
+
+.result-grid > div:nth-child(2)::after {
+  background: var(--orange);
+}
+
+.result-grid > div:nth-child(3)::after {
+  background: var(--yellow);
+}
+
+.outcome-banner,
+.failure-box,
+.score-save-form,
+.education-message,
+.education-action,
+.education-hub {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.score-save-status[data-state='saved'],
+.score-save-status[data-state='not-ranked'] {
+  padding-left: 1.25rem;
+  background: radial-gradient(circle at 0.45rem 50%, #23866d 0 0.24rem, transparent 0.26rem);
+}
+
+.leaderboard-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  background: linear-gradient(180deg, #f6ffff, #e4f4f4);
+}
+
+.leaderboard-close .ui-icon {
+  width: 1rem;
+}
+
+.leaderboard-table tbody tr[data-rank='1'] {
+  background: linear-gradient(90deg, rgba(255, 221, 111, 0.32), rgba(255, 250, 230, 0.72));
+}
+
+.leaderboard-table tbody tr[data-rank='2'] {
+  background: linear-gradient(90deg, rgba(193, 211, 218, 0.34), rgba(247, 251, 252, 0.74));
+}
+
+.leaderboard-table tbody tr[data-rank='3'] {
+  background: linear-gradient(90deg, rgba(224, 165, 116, 0.25), rgba(255, 248, 242, 0.72));
+}
+
+.leaderboard-table tbody tr[data-current='true'] {
+  background: linear-gradient(90deg, #ffe997, #fff6cb);
+}
+
+.leaderboard-rank__medal {
+  position: relative;
+  display: inline-block;
+  width: 0.92rem;
+  height: 1.05rem;
+  margin-right: 0.18rem;
+  vertical-align: -0.26rem;
+}
+
+.leaderboard-rank__medal::before {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.68rem;
+  border: 0.12rem solid currentColor;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.64);
+  content: '';
+}
+
+.leaderboard-rank__medal::after {
+  position: absolute;
+  top: 0;
+  left: 0.2rem;
+  width: 0.38rem;
+  height: 0.52rem;
+  border-right: 0.17rem solid currentColor;
+  border-left: 0.17rem solid currentColor;
+  content: '';
+  transform: skewX(-12deg);
+}
+
+tr[data-rank='1'] .leaderboard-rank__medal {
+  color: #bd7b09;
+}
+
+tr[data-rank='2'] .leaderboard-rank__medal {
+  color: #66808f;
+}
+
+tr[data-rank='3'] .leaderboard-rank__medal {
+  color: #ad6540;
+}
+
+@keyframes ui-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ui-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.42rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ui-backdrop-in {
+  from {
+    background-color: rgba(8, 24, 45, 0);
+  }
+}
+
+@keyframes ui-chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-0.25rem) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes ui-runner-mark-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.42rem) rotate(-4deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(-4deg);
+  }
+}
+
+@keyframes ui-record-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  68% {
+    transform: scale(1.04);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.game-frame[data-view='home'] .home-card,
+.overlay-panel:not([hidden]) > .overlay-card {
+  animation: ui-panel-in 420ms var(--ease-out-brand) both;
+}
+
+.overlay-panel:not([hidden]) {
+  animation: ui-backdrop-in 260ms ease-out both;
+}
+
+.game-frame[data-view='home'] .home-card > * {
+  animation: ui-item-in 380ms var(--ease-out-brand) 60ms both;
+}
+
+.game-frame[data-view='home'] .home-card > .runner-mark,
+.game-frame[data-view='home'] .home-card > h1 {
+  animation-delay: 100ms;
+}
+
+.game-frame[data-view='home'] .home-card > .runner-mark {
+  animation-name: ui-runner-mark-in;
+}
+
+.game-frame[data-view='home'] .home-card > .home-lead,
+.game-frame[data-view='home'] .home-card > .marathon-route {
+  animation-delay: 145ms;
+}
+
+.game-frame[data-view='home'] .home-card > .how-to-play,
+.game-frame[data-view='home'] .home-card > .home-actions {
+  animation-delay: 195ms;
+}
+
+.game-frame[data-view='home'] .home-card > .home-hint {
+  animation-delay: 240ms;
+}
+
+.game-frame[data-view='game-over'] .outcome-banner,
+.game-frame[data-view='game-over'] .result-grid,
+.game-frame[data-view='game-over'] .failure-box,
+.game-frame[data-view='game-over'] .education-focus-label,
+.game-frame[data-view='game-over'] .education-message {
+  animation: ui-item-in 360ms var(--ease-out-brand) both;
+}
+
+.game-frame[data-view='game-over'] .result-grid {
+  animation-delay: 55ms;
+}
+
+.game-frame[data-view='game-over'] .failure-box {
+  animation-delay: 95ms;
+}
+
+.game-frame[data-view='game-over'] .education-focus-label,
+.game-frame[data-view='game-over'] .education-message {
+  animation-delay: 135ms;
+}
+
+.new-record:not([hidden]),
+.score-save-status[data-state='saved'],
+.score-save-status[data-state='not-ranked'] {
+  animation: ui-record-in 420ms var(--ease-out-brand) both;
+}
+
+.status-chip--entering {
+  animation: ui-chip-in 220ms var(--ease-out-brand) both;
+}
+
+.hud-layer > .stage-hud,
+.hud-layer > .vitals-card,
+.hud-layer > .status-region,
+.hud-layer > .hud-summary {
+  transition:
+    opacity 160ms ease,
+    transform 200ms var(--ease-out-brand);
+}
+
+.hud-layer[data-stage-transition='true'] > .stage-hud,
+.hud-layer[data-stage-transition='true'] > .vitals-card,
+.hud-layer[data-stage-transition='true'] > .status-region,
+.hud-layer[data-stage-transition='true'] > .hud-summary {
+  opacity: 0;
+  transform: translateY(-0.3rem);
+}
+
+.hud-layer[data-stage-transition='true'] > .game-feedback {
+  position: absolute;
+  top: 4.6rem;
+  left: 50%;
+  width: max-content;
+  margin: 0;
+  translate: -50% 0;
+}
+
+.leaderboard-overlay:not([hidden]) .leaderboard-table tbody tr {
+  animation: ui-item-in 280ms var(--ease-out-brand) both;
+  animation-delay: calc(65ms + var(--leaderboard-row-index, 0) * 28ms);
+}
+
 @media (max-width: 40rem) {
   :root {
     --footer-space: 4.75rem;
+  }
+
+  .leaderboard-scroll-hint {
+    position: sticky;
+    z-index: 2;
+    left: 0;
+    display: flex;
+    width: min(100%, 25rem);
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.28rem;
+    margin: 0;
+    padding: 0.38rem 0.5rem 0.3rem;
+    color: #45677a;
+    background: linear-gradient(90deg, rgba(247, 252, 252, 0.96), #eaf5f4);
+    font-size: 0.68rem;
+    font-weight: 850;
+  }
+
+  .leaderboard-scroll-hint span {
+    color: #167b89;
+    font-size: 0.88rem;
   }
 }
 
@@ -2359,6 +2792,26 @@ a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .game-feedback--visible {
     animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .game-frame[data-view='home'] .home-card,
+  .game-frame[data-view='home'] .home-card > *,
+  .overlay-panel:not([hidden]),
+  .overlay-panel:not([hidden]) > .overlay-card,
+  .game-frame[data-view='game-over'] .outcome-banner,
+  .game-frame[data-view='game-over'] .result-grid,
+  .game-frame[data-view='game-over'] .failure-box,
+  .game-frame[data-view='game-over'] .education-focus-label,
+  .game-frame[data-view='game-over'] .education-message,
+  .new-record:not([hidden]),
+  .score-save-status[data-state='saved'],
+  .score-save-status[data-state='not-ranked'],
+  .status-chip--entering,
+  .leaderboard-overlay:not([hidden]) .leaderboard-table tbody tr,
+  .leaderboard-empty[data-state='loading'] .leaderboard-empty__icon {
+    animation: none !important;
     opacity: 1;
     transform: none;
   }

@@ -40,6 +40,34 @@ const UI_ICONS = {
       <path d="M8 6v12M16 6v12" />
     </svg>
   `,
+  play: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path class="ui-icon__fill" d="m8 5 11 7-11 7V5Z" />
+    </svg>
+  `,
+  restart: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M5.2 8.2A8 8 0 1 1 4 15.8" />
+      <path d="M4.8 3.8v4.8h4.8" />
+    </svg>
+  `,
+  share: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M12 15V3m-4 4 4-4 4 4" />
+      <path d="M6 11H4.5A1.5 1.5 0 0 0 3 12.5v6A1.5 1.5 0 0 0 4.5 20h15a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5H18" />
+    </svg>
+  `,
+  download: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M12 3v12m-4-4 4 4 4-4" />
+      <path d="M5 20h14" />
+    </svg>
+  `,
+  close: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="m6 6 12 12M18 6 6 18" />
+    </svg>
+  `,
   risk: `
     <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
       <path d="M12 3 2.8 20h18.4L12 3Z" />
@@ -193,7 +221,7 @@ const UI_MARKUP = `
 
             <div class="home-actions">
               <button class="button button--primary button--large" data-testid="start-button" type="button">
-                <span aria-hidden="true">▶</span>
+                <span class="ui-icon ui-icon--play" aria-hidden="true">${UI_ICONS.play}</span>
                 開始備賽
               </button>
               <button
@@ -355,7 +383,7 @@ const UI_MARKUP = `
             <h2 id="pause-title">已暫停</h2>
             <p>喘口氣，準備好再繼續。</p>
             <button class="button button--primary button--large" data-testid="resume-button" type="button">
-              <span aria-hidden="true">▶</span>
+              <span class="ui-icon ui-icon--play" aria-hidden="true">${UI_ICONS.play}</span>
               繼續跑步
             </button>
           </div>
@@ -521,11 +549,11 @@ const UI_MARKUP = `
 
             <div class="result-actions">
               <button class="button button--primary" data-testid="restart-button" type="button">
-                <span aria-hidden="true">↻</span>
+                <span class="ui-icon ui-icon--restart" aria-hidden="true">${UI_ICONS.restart}</span>
                 <span data-restart-label>調整策略再挑戰</span>
               </button>
               <button class="button button--secondary" data-share-button type="button">
-                <span aria-hidden="true">↗</span>
+                <span class="ui-icon ui-icon--share" aria-hidden="true">${UI_ICONS.share}</span>
                 分享成績
               </button>
               <button
@@ -534,7 +562,7 @@ const UI_MARKUP = `
                 data-testid="download-share-card-button"
                 type="button"
               >
-                <span aria-hidden="true">↓</span>
+                <span class="ui-icon ui-icon--download" aria-hidden="true">${UI_ICONS.download}</span>
                 儲存分享圖
               </button>
               <button
@@ -576,7 +604,8 @@ const UI_MARKUP = `
                 type="button"
                 aria-label="關閉排行榜"
               >
-                關閉
+                <span class="ui-icon ui-icon--close" aria-hidden="true">${UI_ICONS.close}</span>
+                <span>關閉</span>
               </button>
             </div>
 
@@ -585,7 +614,17 @@ const UI_MARKUP = `
               只顯示通過伺服器規則檢查的成績；暱稱請勿填入真實姓名或敏感資訊。
             </p>
 
-            <div class="leaderboard-scroll" data-leaderboard-table hidden>
+            <div
+              class="leaderboard-scroll"
+              data-leaderboard-table
+              tabindex="0"
+              aria-label="排行榜表格，可左右滑動查看完整欄位"
+              hidden
+            >
+              <p class="leaderboard-scroll-hint">
+                <span aria-hidden="true">↔</span>
+                左右滑動查看里程與結果
+              </p>
               <table class="leaderboard-table">
                 <thead>
                   <tr>
@@ -663,6 +702,7 @@ export class GameUI {
   private scoreSubmissionPending = false;
   private shareAssetOperationPending = false;
   private renderedStatusSignature = '';
+  private renderedStatusIds = new Set<string>();
   private feedbackTimerId: number | null = null;
   private educationReminders: readonly EducationReminderCard[] = [];
   private activeEducationTopic: EducationTopic | null = null;
@@ -745,6 +785,10 @@ export class GameUI {
 
   setPaused(paused: boolean): void {
     this.setView(paused ? 'paused' : 'playing');
+  }
+
+  setStageTransitionActive(active: boolean): void {
+    this.hudLayer.dataset.stageTransition = String(active);
   }
 
   resetHUD(state: Partial<HUDState> = {}): void {
@@ -889,7 +933,18 @@ export class GameUI {
         entry.score === previousEntry.score &&
         entry.distanceMeters === previousEntry.distanceMeters;
       if (!isTiedWithPrevious) displayedRank = index + 1;
-      this.appendLeaderboardCell(row, `#${displayedRank}`, 'leaderboard-rank');
+      row.dataset.rank = String(displayedRank);
+      row.style.setProperty('--leaderboard-row-index', String(index));
+      const rankCell = document.createElement('td');
+      rankCell.className = 'leaderboard-rank';
+      if (displayedRank <= 3) {
+        const medal = document.createElement('span');
+        medal.className = 'leaderboard-rank__medal';
+        medal.setAttribute('aria-hidden', 'true');
+        rankCell.append(medal);
+      }
+      rankCell.append(document.createTextNode(`#${displayedRank}`));
+      row.append(rankCell);
       previousEntry = entry;
 
       const nameCell = document.createElement('td');
@@ -1381,6 +1436,7 @@ export class GameUI {
   private renderStatuses(statuses: HUDStatus[]): void {
     const region = this.element<HTMLElement>('[data-status-region]');
     region.dataset.active = String(statuses.length > 0);
+    const statusIds = new Set(statuses.length === 0 ? ['healthy'] : statuses.map(({ id }) => id));
     const signature =
       statuses.length === 0
         ? 'healthy'
@@ -1396,6 +1452,8 @@ export class GameUI {
             .join('|');
     if (signature === this.renderedStatusSignature) return;
     this.renderedStatusSignature = signature;
+    const previousStatusIds = this.renderedStatusIds;
+    this.renderedStatusIds = statusIds;
 
     const list = this.element<HTMLUListElement>('[data-status-list]');
     list.replaceChildren();
@@ -1403,6 +1461,7 @@ export class GameUI {
     if (statuses.length === 0) {
       const item = document.createElement('li');
       item.className = 'status-chip status-chip--neutral';
+      if (!previousStatusIds.has('healthy')) item.classList.add('status-chip--entering');
       item.textContent = '狀態良好';
       list.append(item);
       return;
@@ -1411,6 +1470,7 @@ export class GameUI {
     statuses.forEach((status) => {
       const item = document.createElement('li');
       item.className = `status-chip status-chip--${status.tone ?? 'neutral'}`;
+      if (!previousStatusIds.has(status.id)) item.classList.add('status-chip--entering');
       item.dataset.statusId = status.id;
 
       const iconMarkup = getStatusIconMarkup(status.id);

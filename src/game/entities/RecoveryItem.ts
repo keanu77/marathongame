@@ -203,9 +203,9 @@ export class RecoveryItem extends Phaser.GameObjects.Container {
         fontFamily: 'system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif',
         fontSize,
         fontStyle: 'bold',
+        resolution: 2,
       })
-      .setOrigin(0.5)
-      .setResolution(2);
+      .setOrigin(0.5);
     this.add(label);
   }
 

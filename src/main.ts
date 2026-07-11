@@ -36,6 +36,7 @@ declare global {
       endGame: (reason?: 'energy' | 'injuryRisk') => void;
       completeGame: () => void;
       getPlayerState: () => string;
+      getStageTransitionTextResolutions: () => number[];
       setStage: (stageId: MarathonStageId) => void;
       getMusicState: () => MusicPlaybackState;
       showFeedback: (kind: 'injury' | 'nutrition' | 'education') => void;
@@ -145,6 +146,10 @@ gameEventBus.on(GAME_EVENTS.runStarted, () => {
   ui.showPlaying();
 });
 
+gameEventBus.on(GAME_EVENTS.stageTransitionChanged, (active: boolean) => {
+  ui.setStageTransitionActive(active);
+});
+
 gameEventBus.on(GAME_EVENTS.pauseChanged, (paused: boolean) => {
   soundManager.setMusicPaused(paused);
   ui.setPaused(paused);
@@ -248,6 +253,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     endGame: (reason = 'energy') => getScene()?.forceGameOver(reason),
     completeGame: () => getScene()?.forceComplete(),
     getPlayerState: () => getScene()?.getPlayerState() ?? 'unavailable',
+    getStageTransitionTextResolutions: () => getScene()?.getStageTransitionTextResolutions() ?? [],
     setStage: (stageId) => getScene()?.forceStage(stageId),
     getMusicState: () => soundManager.getMusicState(),
     showFeedback: (kind) => {

@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 
-import { GAME_CONFIG } from '../config';
 import type { MarathonStageId } from '../types';
 
 type SceneryLayer = 'atmosphere' | 'far' | 'middle' | 'near' | 'ground' | 'lane';
@@ -77,7 +76,7 @@ function textureKey(stageId: MarathonStageId, layer: SceneryLayer): string {
 export function getBackdropScrollDeltas(
   speed: number,
   deltaMs: number,
-  renderScale = GAME_CONFIG.renderScale,
+  renderScale = 1,
 ): Readonly<Record<SceneryLayer, number>> {
   const safeSpeed = Number.isFinite(speed) ? Math.max(0, speed) : 0;
   const safeSeconds = Number.isFinite(deltaMs) ? Math.max(0, deltaMs) / 1_000 : 0;
@@ -111,6 +110,7 @@ export class WorldBackdrop {
   private readonly laneMarks: Phaser.GameObjects.TileSprite;
   private readonly width: number;
   private readonly groundY: number;
+  private readonly renderScale: number;
   private stageId: MarathonStageId = 'base';
 
   public constructor(
@@ -118,16 +118,18 @@ export class WorldBackdrop {
     width: number,
     height: number,
     groundY: number,
+    renderScale: number,
   ) {
     this.width = width;
     this.groundY = groundY;
+    this.renderScale = Number.isFinite(renderScale) ? Math.max(1, renderScale) : 1;
     this.sky = scene.add.graphics().setDepth(-30);
     this.sun = scene.add.graphics().setDepth(-29);
 
     this.createTextures();
 
     // Distant layers use a 1× output canvas as a deliberate mobile-performance
-    // LOD. Near scenery and the running surface keep a true 2× output canvas.
+    // LOD. Near scenery and the running surface use the selected output scale.
     this.atmosphere = scene.add
       .tileSprite(0, 70, width, 300, textureKey('base', 'atmosphere'))
       .setOrigin(0, 0)
@@ -144,34 +146,34 @@ export class WorldBackdrop {
       .tileSprite(
         0,
         groundY - 112,
-        width * GAME_CONFIG.renderScale,
-        112 * GAME_CONFIG.renderScale,
+        width * this.renderScale,
+        112 * this.renderScale,
         textureKey('base', 'near'),
       )
       .setOrigin(0, 0)
-      .setScale(1 / GAME_CONFIG.renderScale)
+      .setScale(1 / this.renderScale)
       .setDepth(-15);
     this.ground = scene.add
       .tileSprite(
         0,
         groundY,
-        width * GAME_CONFIG.renderScale,
-        (height - groundY) * GAME_CONFIG.renderScale,
+        width * this.renderScale,
+        (height - groundY) * this.renderScale,
         textureKey('base', 'ground'),
       )
       .setOrigin(0, 0)
-      .setScale(1 / GAME_CONFIG.renderScale)
+      .setScale(1 / this.renderScale)
       .setDepth(-10);
     this.laneMarks = scene.add
       .tileSprite(
         0,
         groundY + 42,
-        width * GAME_CONFIG.renderScale,
-        24 * GAME_CONFIG.renderScale,
+        width * this.renderScale,
+        24 * this.renderScale,
         textureKey('base', 'lane'),
       )
       .setOrigin(0, 0)
-      .setScale(1 / GAME_CONFIG.renderScale)
+      .setScale(1 / this.renderScale)
       .setDepth(-9);
 
     this.horizon = scene.add.graphics().setDepth(-8);
@@ -200,7 +202,7 @@ export class WorldBackdrop {
   }
 
   public update(speed: number, deltaMs: number): void {
-    const scroll = getBackdropScrollDeltas(speed, deltaMs);
+    const scroll = getBackdropScrollDeltas(speed, deltaMs, this.renderScale);
     this.atmosphere.tilePositionX += scroll.atmosphere;
     this.farScenery.tilePositionX += scroll.far;
     this.middleScenery.tilePositionX += scroll.middle;
@@ -304,7 +306,7 @@ export class WorldBackdrop {
       (graphics) => {
         this.drawNearScenery(graphics, stageId);
       },
-      GAME_CONFIG.renderScale,
+      this.renderScale,
     );
     this.createTexture(
       textureKey(stageId, 'ground'),
@@ -313,7 +315,7 @@ export class WorldBackdrop {
       (graphics) => {
         this.drawGround(graphics, stageId);
       },
-      GAME_CONFIG.renderScale,
+      this.renderScale,
     );
     this.createTexture(
       textureKey(stageId, 'lane'),
@@ -322,7 +324,7 @@ export class WorldBackdrop {
       (graphics) => {
         this.drawLane(graphics, stageId);
       },
-      GAME_CONFIG.renderScale,
+      this.renderScale,
     );
   }
 

@@ -83,8 +83,9 @@ export class Obstacle extends Phaser.GameObjects.Container {
       align: 'center',
       stroke: '#10283d',
       strokeThickness: isIllness ? 0 : 2,
+      resolution: 2,
     });
-    label.setOrigin(0.5).setResolution(2);
+    label.setOrigin(0.5);
     this.add(label);
   }
 

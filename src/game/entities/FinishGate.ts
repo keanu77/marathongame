@@ -108,9 +108,9 @@ export class FinishGate extends Phaser.GameObjects.Container {
         fontFamily: 'system-ui, "Arial Black", sans-serif',
         fontSize: '22px',
         fontStyle: 'bold',
+        resolution: 2,
       })
       .setOrigin(0.5)
-      .setResolution(2)
       .setShadow(0, 2, '#10283d', 2, false, true);
 
     const finishLabelZh = this.scene.add
@@ -119,9 +119,9 @@ export class FinishGate extends Phaser.GameObjects.Container {
         fontFamily: 'system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif',
         fontSize: '12px',
         fontStyle: 'bold',
+        resolution: 2,
       })
-      .setOrigin(0.5)
-      .setResolution(2);
+      .setOrigin(0.5);
 
     this.add([graphics, finishLabel, finishLabelZh]);
   }

@@ -9,11 +9,43 @@ export interface PaceModeConfig {
   readonly nextItemSpawnDelayMultiplier: number;
 }
 
+export type RenderQualityId = 'economy' | 'balanced' | 'high';
+export type RenderScale = 1 | 1.5 | 2;
+
+/**
+ * 僅包含穩定、與裝置型號無關的能力訊號，方便測試且不依賴 UA 猜測。
+ * 缺少的瀏覽器欄位維持 undefined，不會被誤判為低階裝置。
+ */
+export interface RenderCapabilitySnapshot {
+  readonly devicePixelRatio?: number;
+  readonly hardwareConcurrency?: number;
+  readonly deviceMemoryGb?: number;
+  readonly saveData?: boolean;
+  readonly prefersReducedData?: boolean;
+}
+
+export interface RenderQualityProfile {
+  readonly id: RenderQualityId;
+  readonly renderScale: RenderScale;
+}
+
+export interface RenderQualityConfig {
+  readonly economyScale: RenderScale;
+  readonly balancedScale: RenderScale;
+  readonly highScale: RenderScale;
+  readonly economyDpiThreshold: number;
+  readonly balancedDpiThreshold: number;
+  readonly lowCoreThreshold: number;
+  readonly balancedCoreThreshold: number;
+  readonly lowMemoryGbThreshold: number;
+  readonly balancedMemoryGbThreshold: number;
+}
+
 export interface GameConfig {
   readonly canvasWidth: number;
   readonly canvasHeight: number;
-  /** Canvas backing-buffer multiplier; gameplay coordinates remain canvasWidth × canvasHeight. */
-  readonly renderScale: number;
+  /** Canvas backing-buffer multiplier ceiling; runtime selection may use a lower scale. */
+  readonly renderScale: RenderScale;
   readonly groundY: number;
   readonly playerStartX: number;
   readonly playerWidth: number;
@@ -96,13 +128,80 @@ export interface GameConfig {
   readonly leaderboardIdMaxLength: number;
 }
 
+export const RENDER_QUALITY_CONFIG = {
+  economyScale: 1,
+  balancedScale: 1.5,
+  highScale: 2,
+  economyDpiThreshold: 1,
+  balancedDpiThreshold: 1.5,
+  lowCoreThreshold: 2,
+  balancedCoreThreshold: 4,
+  lowMemoryGbThreshold: 2,
+  balancedMemoryGbThreshold: 4,
+} as const satisfies RenderQualityConfig;
+
+const RENDER_QUALITY_PROFILES: Readonly<Record<RenderQualityId, RenderQualityProfile>> = {
+  economy: { id: 'economy', renderScale: RENDER_QUALITY_CONFIG.economyScale },
+  balanced: { id: 'balanced', renderScale: RENDER_QUALITY_CONFIG.balancedScale },
+  high: { id: 'high', renderScale: RENDER_QUALITY_CONFIG.highScale },
+};
+
+function isAtMost(value: number | undefined, threshold: number): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= threshold;
+}
+
+function safeDevicePixelRatio(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+/**
+ * 選擇 backing buffer 品質，不改變 540 × 960 邏輯世界、物理或遊戲速度。
+ */
+export function selectRenderQualityProfile(
+  capabilities: RenderCapabilitySnapshot,
+  config: RenderQualityConfig = RENDER_QUALITY_CONFIG,
+): RenderQualityProfile {
+  const dpr = safeDevicePixelRatio(capabilities.devicePixelRatio);
+  const shouldSaveResources = capabilities.saveData || capabilities.prefersReducedData;
+  const isSeverelyConstrained =
+    isAtMost(capabilities.hardwareConcurrency, config.lowCoreThreshold) ||
+    isAtMost(capabilities.deviceMemoryGb, config.lowMemoryGbThreshold);
+
+  if (shouldSaveResources || isSeverelyConstrained) {
+    return { id: 'economy', renderScale: config.economyScale };
+  }
+
+  const nativeProfile: RenderQualityProfile =
+    dpr <= config.economyDpiThreshold
+      ? { id: 'economy', renderScale: config.economyScale }
+      : dpr <= config.balancedDpiThreshold
+        ? { id: 'balanced', renderScale: config.balancedScale }
+        : { id: 'high', renderScale: config.highScale };
+
+  const isModeratelyConstrained =
+    isAtMost(capabilities.hardwareConcurrency, config.balancedCoreThreshold) ||
+    isAtMost(capabilities.deviceMemoryGb, config.balancedMemoryGbThreshold);
+
+  if (isModeratelyConstrained && nativeProfile.id === 'high') {
+    return { id: 'balanced', renderScale: config.balancedScale };
+  }
+
+  return nativeProfile;
+}
+
+export function normalizeRenderScale(value: number): RenderScale {
+  if (!Number.isFinite(value) || value <= 1) return RENDER_QUALITY_PROFILES.economy.renderScale;
+  if (value < 2) return RENDER_QUALITY_PROFILES.balanced.renderScale;
+  return RENDER_QUALITY_PROFILES.high.renderScale;
+}
+
 /**
  * 所有可調整的遊戲數值都集中在此，場景與系統不應重複寫死數值。
  */
 export const GAME_CONFIG = {
   canvasWidth: 540,
   canvasHeight: 960,
-  renderScale: 2,
+  renderScale: RENDER_QUALITY_CONFIG.highScale,
   groundY: 800,
   playerStartX: 108,
   playerWidth: 58,

@@ -22,15 +22,24 @@ export interface StageMusicConfig {
   readonly melodyHz: readonly (number | null)[];
   /** One loop contains 16 eighth-note steps. null represents a rest. */
   readonly bassHz: readonly (number | null)[];
+  /** A quiet counter-line gives each stage harmonic depth without samples. */
+  readonly harmonyHz: readonly (number | null)[];
+  /** Per-step velocity prevents the procedural loop from sounding mechanical. */
+  readonly dynamics: readonly number[];
   /** Low kick and high accent are synthesized independently for a clearer groove. */
   readonly kick: PercussionVoiceConfig;
   readonly accent: PercussionVoiceConfig;
   readonly melodyWave: MusicWaveform;
   readonly bassWave: MusicWaveform;
+  readonly harmonyWave: MusicWaveform;
   readonly melodyVolume: number;
   readonly bassVolume: number;
+  readonly harmonyVolume: number;
   readonly melodyDurationSteps: number;
   readonly bassDurationSteps: number;
+  readonly harmonyDurationSteps: number;
+  /** One gentle low-pass filter per stage bus tames bright oscillator harmonics. */
+  readonly filterCutoffHz: number;
 }
 
 export interface MusicEngineConfig {
@@ -39,6 +48,11 @@ export interface MusicEngineConfig {
   readonly scheduleAheadSeconds: number;
   readonly crossfadeSeconds: number;
   readonly pauseFadeSeconds: number;
+  readonly musicBusVolume: number;
+  readonly effectsBusVolume: number;
+  readonly duckVolume: number;
+  readonly duckAttackSeconds: number;
+  readonly duckReleaseSeconds: number;
 }
 
 /** Shared scheduler timing and fade values for the Web Audio engine. */
@@ -48,14 +62,19 @@ export const MUSIC_ENGINE_CONFIG = {
   scheduleAheadSeconds: 0.2,
   crossfadeSeconds: 0.35,
   pauseFadeSeconds: 0.1,
+  musicBusVolume: 0.82,
+  effectsBusVolume: 0.88,
+  duckVolume: 0.56,
+  duckAttackSeconds: 0.025,
+  duckReleaseSeconds: 0.34,
 } as const satisfies MusicEngineConfig;
 
 /**
  * Three original procedural loops assembled from simple chord tones. They use
  * no recordings, samples, downloaded music, or melodies adapted from a song.
- * Each stage has an original two-bar groove. Later stages gain tempo, note
- * density, brighter timbres, and stronger off-beat accents without relying on
- * a volume jump.
+ * Each stage has an original two-bar groove. A restrained counter-line and
+ * humanised step dynamics add depth, while later stages gain tempo, note
+ * density and brighter timbres without relying on a volume jump.
  */
 export const STAGE_MUSIC_CONFIG = {
   base: {
@@ -97,6 +116,27 @@ export const STAGE_MUSIC_CONFIG = {
       null,
       null,
       123.47,
+    ],
+    harmonyHz: [
+      196,
+      null,
+      null,
+      null,
+      174.61,
+      null,
+      null,
+      null,
+      196,
+      null,
+      null,
+      null,
+      164.81,
+      null,
+      null,
+      null,
+    ],
+    dynamics: [
+      1, 0.76, 0.88, 0.8, 0.94, 0.74, 0.86, 0.78, 1, 0.76, 0.9, 0.8, 0.96, 0.74, 0.86, 0.78,
     ],
     kick: {
       pattern: [
@@ -150,10 +190,14 @@ export const STAGE_MUSIC_CONFIG = {
     },
     melodyWave: 'triangle',
     bassWave: 'sine',
-    melodyVolume: 0.027,
-    bassVolume: 0.032,
+    harmonyWave: 'sine',
+    melodyVolume: 0.026,
+    bassVolume: 0.028,
+    harmonyVolume: 0.012,
     melodyDurationSteps: 0.82,
     bassDurationSteps: 1.35,
+    harmonyDurationSteps: 3.4,
+    filterCutoffHz: 2_600,
   },
   build: {
     label: '加速',
@@ -194,6 +238,27 @@ export const STAGE_MUSIC_CONFIG = {
       null,
       138.59,
       146.83,
+    ],
+    harmonyHz: [
+      220,
+      null,
+      246.94,
+      null,
+      220,
+      null,
+      293.66,
+      null,
+      246.94,
+      null,
+      293.66,
+      null,
+      329.63,
+      null,
+      369.99,
+      null,
+    ],
+    dynamics: [
+      1, 0.78, 0.92, 0.82, 0.96, 0.8, 0.94, 0.84, 1, 0.8, 0.96, 0.84, 1.04, 0.82, 0.98, 0.88,
     ],
     kick: {
       pattern: [
@@ -246,11 +311,15 @@ export const STAGE_MUSIC_CONFIG = {
       durationSeconds: 0.035,
     },
     melodyWave: 'triangle',
-    bassWave: 'square',
-    melodyVolume: 0.025,
-    bassVolume: 0.029,
+    bassWave: 'triangle',
+    harmonyWave: 'sine',
+    melodyVolume: 0.023,
+    bassVolume: 0.026,
+    harmonyVolume: 0.011,
     melodyDurationSteps: 0.62,
     bassDurationSteps: 0.92,
+    harmonyDurationSteps: 1.45,
+    filterCutoffHz: 3_200,
   },
   race: {
     label: '熱血',
@@ -277,6 +346,27 @@ export const STAGE_MUSIC_CONFIG = {
       146.83,
       123.47,
       146.83,
+    ],
+    harmonyHz: [
+      246.94,
+      null,
+      329.63,
+      369.99,
+      329.63,
+      null,
+      392,
+      440,
+      293.66,
+      null,
+      369.99,
+      440,
+      392,
+      493.88,
+      440,
+      493.88,
+    ],
+    dynamics: [
+      1, 0.82, 0.96, 0.88, 1.02, 0.84, 0.98, 0.9, 1.04, 0.86, 1, 0.9, 1.06, 0.88, 1.02, 0.94,
     ],
     kick: {
       pattern: [
@@ -329,10 +419,14 @@ export const STAGE_MUSIC_CONFIG = {
       durationSeconds: 0.028,
     },
     melodyWave: 'sawtooth',
-    bassWave: 'square',
-    melodyVolume: 0.019,
-    bassVolume: 0.026,
+    bassWave: 'triangle',
+    harmonyWave: 'square',
+    melodyVolume: 0.018,
+    bassVolume: 0.024,
+    harmonyVolume: 0.009,
     melodyDurationSteps: 0.46,
     bassDurationSteps: 0.72,
+    harmonyDurationSteps: 0.62,
+    filterCutoffHz: 3_800,
   },
 } as const satisfies Readonly<Record<MarathonStageId, StageMusicConfig>>;

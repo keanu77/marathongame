@@ -131,6 +131,8 @@ describe('分享成績卡 PNG', () => {
     expect(file?.name).toBe('marathon-finish-training-score.png');
     expect(file?.type).toBe('image/png');
     expect(context.fillText).toHaveBeenCalledWith('#3', expect.any(Number), expect.any(Number));
+    expect(context.arc).toHaveBeenCalledWith(113, 74, 5.5, 0, Math.PI * 2);
+    expect(context.stroke).toHaveBeenCalled();
 
     await createShareCardFile({ ...COMPLETED_RESULT, leaderboardRank: null });
     await createShareCardFile({ ...COMPLETED_RESULT, leaderboardRank: undefined });
