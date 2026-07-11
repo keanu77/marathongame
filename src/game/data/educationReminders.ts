@@ -1,9 +1,18 @@
 import type {
+  EducationContentMetadata,
   EducationReminderCard,
   EducationSafetyAlert,
   EducationTopic,
 } from '../../shared/education';
 import type { GameOverReason, MarathonStageId, ObstacleType } from '../types';
+
+export const EDUCATION_CONTENT_METADATA = {
+  version: '2026.07',
+  updatedAt: '2026-07-12',
+  maintainedBy: '專案維護者',
+  reviewStatus: 'pending',
+  scope: '結算提醒、紅旗警訊、訓練、運動傷害與跑步營養一般衛教',
+} as const satisfies EducationContentMetadata;
 
 export const EDUCATION_REMINDER_CARDS = [
   {

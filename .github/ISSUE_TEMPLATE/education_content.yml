@@ -1,0 +1,94 @@
+name: 衛教內容建議或勘誤
+description: 提議新增、修正或審查馬拉松訓練、運動傷害與營養內容
+title: '[衛教] '
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本遊戲僅供娛樂與衛教，不取代醫療診斷、風險預測或個別評估。若是個人症狀或就醫問題，請向合格醫療專業人員諮詢，不要在 Issue 公開個人病歷。
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 建議類型
+      options:
+        - 既有內容勘誤
+        - 新增衛教主題
+        - 遊戲機制與衛教訊息不一致
+        - 紅旗警訊或就醫建議
+        - 文字易讀性或用語調整
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: 主題領域
+      options:
+        - 馬拉松訓練與配速
+        - 恢復、睡眠與訓練負荷
+        - 運動傷害與疼痛警訊
+        - 補水與運動營養
+        - 阻力訓練
+        - 賽前準備與完賽恢復
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 目前內容或出現位置
+      description: 若是勘誤，請貼出簡短原文，並說明在哪個畫面、事件或資料檔看到。
+      placeholder: 結算頁的「……」訊息／基礎期撿到某道具後……
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建議修改內容
+      description: 請用一般玩家容易理解的繁體中文描述，不要提供個別化診斷或治療指示。
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: 修改理由與可能風險
+      description: 說明現有內容可能造成的誤解，以及建議如何表達適用範圍、限制或紅旗警訊。
+    validations:
+      required: true
+
+  - type: textarea
+    id: sources
+    attributes:
+      label: 參考來源
+      description: 請優先提供學術指引、系統性回顧、同儕審查研究或公衛／醫療機構資料，包含標題、年份與連結。
+      placeholder: |
+        - 指引或文章標題（年份）：https://…
+        - DOI 或官方網址：https://…
+    validations:
+      required: true
+
+  - type: input
+    id: reviewer
+    attributes:
+      label: 建議審查專業
+      description: 此內容適合由哪類專業人員審查，例如運動醫學醫師、物理治療師或運動營養師。
+      placeholder: 運動醫學醫師
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 安全與隱私確認
+      options:
+        - label: 本建議不是針對特定玩家的診斷、風險預測或個別治療建議。
+          required: true
+        - label: 我沒有公開病歷、身分資訊或其他敏感資料。
+          required: true
+        - label: 我了解內容合併前仍需查證來源並接受適當的專業審查。
+          required: true

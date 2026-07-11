@@ -7,6 +7,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
+  // Fresh pages bake a 48-frame atlas and some result flows encode a 1080px
+  // share card. Keep real actionability checks, while allowing slower CI and
+  // mobile-emulation hosts enough time to finish trusted clicks.
+  timeout: 60_000,
   // Runtime vector-atlas baking is intentionally exercised on every fresh
   // page. A single worker avoids mobile timeouts caused by two Chromium tabs
   // baking the 48-frame atlas at the same time on constrained machines.
@@ -14,7 +18,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL,
-    actionTimeout: 10_000,
+    actionTimeout: 20_000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

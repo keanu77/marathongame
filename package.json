@@ -2,6 +2,7 @@
   "name": "marathon-prep-runner",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "從馬拉松基礎期、進階期到正式比賽的繁體中文 2D 跑酷衛教遊戲。",
   "type": "module",
   "packageManager": "pnpm@10.27.0",

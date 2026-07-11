@@ -1,9 +1,30 @@
+import { copyFile } from 'node:fs/promises';
 import { fileURLToPath, URL } from 'node:url';
 
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+
+function copyPublicProjectDocuments(): Plugin {
+  const files = ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md'] as const;
+
+  return {
+    name: 'copy-public-project-documents',
+    apply: 'build',
+    async closeBundle() {
+      await Promise.all(
+        files.map((file) =>
+          copyFile(
+            new URL(`./${file}`, import.meta.url),
+            new URL(`./dist/${file}`, import.meta.url),
+          ),
+        ),
+      );
+    },
+  };
+}
 
 export default defineConfig({
   base: './',
+  plugins: [copyPublicProjectDocuments()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

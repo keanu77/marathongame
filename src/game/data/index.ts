@@ -7,6 +7,7 @@ export {
 export type { EducationSelection } from './educationMessages';
 export {
   countEducationRemindersByTopic,
+  EDUCATION_CONTENT_METADATA,
   EDUCATION_REMINDER_CARDS,
   EDUCATION_SAFETY_ALERT,
   selectEducationFocusTopic,

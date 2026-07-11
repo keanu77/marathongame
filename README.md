@@ -1,8 +1,25 @@
 # 馬拉松完賽訓練
 
+[![CI](https://github.com/keanu77/marathongame/actions/workflows/ci.yml/badge.svg)](https://github.com/keanu77/marathongame/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[立即遊玩](https://marathongame.pages.dev/) · [GitHub 原始碼](https://github.com/keanu77/marathongame) · [衛教跑酷遊戲開發指南](./衛教跑酷遊戲開發指南.md)
+
 「馬拉松完賽訓練」是一款繁體中文 2D 橫向跑酷衛教遊戲。玩家依序通過「基礎期 → 進階期 → 正式比賽」三關，在有限時間內管理體力、受傷風險與配速，並透過跳躍避開負向事件、收集正向道具。三關合計約 80 秒；撐到終點即完賽，體力降至 0 或受傷風險達 100 則中途停止。
 
 > 本遊戲只供娛樂與一般衛教使用。遊戲中的速度、時間、傷害、恢復與配速效果均為虛構的平衡數值，不是醫療診斷、風險預測、個人化訓練處方或治療建議。如有明顯腫脹、劇痛、持續惡化、全身不適或其他疑慮，請停止運動並尋求合格醫療專業人員評估。
+
+## 快速開始
+
+需要 Node.js 22 與 pnpm 10。克隆後執行：
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+然後開啟 `http://localhost:5173`。這個模式可完整學習及修改遊戲畫面，但不會寫入 Cloudflare 網路排行榜。如要一起執行 Pages Functions 與隔離的本機 D1，請參考後文的「安裝與執行」。
 
 ## 遊戲流程
 
@@ -253,6 +270,8 @@ Git 部署不會自動執行 D1 migration，schema 變更必須先明確執行 `
 
 API 會比對瀏覽器 `Origin` 與實際請求網址，因此正式 `pages.dev`、production unique deployment 及未來自訂網域的同源請求都可使用。`wrangler.toml` 的 `LEADERBOARD_PRODUCTION_BRANCH` 目前為 `main`；Cloudflare 注入的 `CF_PAGES_BRANCH` 若不是正式 branch，則可讀取榜單但不能寫入正式榜。若預覽版本也需要寫入，應另外建立 preview D1，不要共用正式資料庫。
 
+> **公開協作前的部署門檻：** `wrangler.toml` 目前的 `preview_database_id = "DB"` 只用於本機開發，不代表遠端 Preview 已與正式 D1 隔離。應先建立獨立 Preview D1，透過 `env.preview` 覆寫 D1 binding 與 vars，並在 Cloudflare 的 Preview 環境另外設定專用 secret，再開放不受信任的同 repo 分支部署；secret 不可寫入 `wrangler.toml` 或 Git。否則應在 Cloudflare 停用這類 Preview。現有 production-branch 檢查是縱深防禦，不能取代基礎設施層的資料庫隔離。
+
 ### Zeabur
 
 可將遊戲畫面以靜態網站方式部署 Git 專案，使用：
@@ -274,6 +293,16 @@ VITE_SOURCEMAP=true pnpm build
 ```
 
 Phaser 會獨立輸出為可長期快取的 vendor chunk。
+
+## 開源、隱私與貢獻
+
+- 本專案以 [MIT License](./LICENSE) 授權；第三方組件保留各自授權，詳見 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+- 公開排行榜會處理玩家主動送出的暱稱與遊戲成績；詳見 [PRIVACY.md](./PRIVACY.md)。
+- 衛教內容的適用範圍、審閱與更正流程見 [MEDICAL_CONTENT.md](./MEDICAL_CONTENT.md)。
+- 想修正 bug、新增關卡或改善衛教內容，請先閱讀 [CONTRIBUTING.md](./CONTRIBUTING.md) 與 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)。
+- 請勿在公開 Issue 張貼未修復的安全漏洞；回報方式見 [SECURITY.md](./SECURITY.md)。
+
+MIT 授權允許學習、修改與再散布，但不代表原作者、專業人員或資料來源認可修改後的醫療、訓練或營養內容。重新發佈衛教版本時，請保留免責說明、核對引用來源，並由合適的專業人員重新審閱。
 
 ## 原創素材與可替換介面
 

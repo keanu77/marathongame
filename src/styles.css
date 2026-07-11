@@ -1322,6 +1322,33 @@ a:focus-visible {
   font-weight: 800;
 }
 
+.network-run-privacy,
+.score-save-privacy {
+  margin: 0.45rem 0 0;
+  color: #476173;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.network-run-privacy {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #c6dddc;
+  border-radius: 0.8rem;
+  background: rgba(242, 250, 248, 0.86);
+  text-align: left;
+}
+
+.network-run-privacy a,
+.score-save-privacy a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  color: #176d72;
+  font-weight: 850;
+  text-underline-offset: 0.16em;
+}
+
 .score-save-status[data-state='error'] {
   color: #a6323e !important;
 }
@@ -2449,6 +2476,10 @@ tr[data-rank='3'] .leaderboard-rank__medal {
 .game-frame[data-view='home'] .home-card > .how-to-play,
 .game-frame[data-view='home'] .home-card > .home-actions {
   animation-delay: 195ms;
+}
+
+.game-frame[data-view='home'] .home-card > .network-run-privacy {
+  animation-delay: 220ms;
 }
 
 .game-frame[data-view='home'] .home-card > .home-hint {

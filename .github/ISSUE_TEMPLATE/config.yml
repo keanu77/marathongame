@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 個人醫療問題
+    url: https://sportsmedicine.tw/
+    about: 本專案不提供個別診斷或治療建議；若有症狀或就醫需求，請洽合格醫療專業人員。
+  - name: 線上遊戲
+    url: https://marathongame.pages.dev/
+    about: 前往正式版遊戲，確認問題是否仍可重現。

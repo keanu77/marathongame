@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   countEducationRemindersByTopic,
+  EDUCATION_CONTENT_METADATA,
   EDUCATION_REMINDER_CARDS,
   EDUCATION_SAFETY_ALERT,
   selectEducationFocusTopic,
@@ -9,6 +10,14 @@ import {
 } from './educationReminders';
 
 describe('結算頁延伸衛教提醒', () => {
+  it('公開衛教內容帶有版本、維護日期、治理狀態與範圍', () => {
+    expect(EDUCATION_CONTENT_METADATA.version).toMatch(/^\d{4}\.\d{2}$/u);
+    expect(EDUCATION_CONTENT_METADATA.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    expect(EDUCATION_CONTENT_METADATA.maintainedBy).toBe('專案維護者');
+    expect(EDUCATION_CONTENT_METADATA.reviewStatus).toBe('pending');
+    expect(EDUCATION_CONTENT_METADATA.scope).toContain('一般衛教');
+  });
+
   it('提供訓練、傷害與營養的獨立卡片，且所有來源皆為 HTTPS', () => {
     const ids = EDUCATION_REMINDER_CARDS.map((card) => card.id);
 

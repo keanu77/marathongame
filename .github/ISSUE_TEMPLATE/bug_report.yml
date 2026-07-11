@@ -1,0 +1,111 @@
+name: 錯誤回報
+description: 回報遊戲操作、畫面、音效、排行榜或部署問題
+title: '[Bug] '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝協助改善遊戲。請勿貼上密碼、Token、Cookie、真實姓名或其他敏感資料。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 問題摘要
+      description: 請簡短描述發生了什麼，以及你原本預期的結果。
+      placeholder: 在手機滑動／點擊跳躍時，頁面跟著捲動……
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      description: 請從開啟遊戲開始，逐步列出能重現問題的操作。
+      placeholder: |
+        1. 開啟首頁
+        2. 點擊「開始」
+        3. ……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期行為
+      placeholder: 畫面應維持固定，角色正常跳躍。
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 實際行為
+      placeholder: 畫面被拖動，角色沒有依預期移動。
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: 遊戲網址或版本
+      description: 可貼正式站、Preview 網址或畫面顯示的 commit 版本。
+      placeholder: https://marathongame.pages.dev/?v=abcdef0
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: 裝置類型
+      options:
+        - iPhone／iPad
+        - Android 手機／平板
+        - Windows 電腦
+        - macOS 電腦
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 作業系統與瀏覽器
+      description: 請盡量提供版本，例如 iOS 19／Safari、Android 16／Chrome。
+      placeholder: iOS／Safari
+    validations:
+      required: true
+
+  - type: dropdown
+    id: input
+    attributes:
+      label: 操作方式
+      options:
+        - 觸控
+        - 滑鼠
+        - 鍵盤
+        - 多種方式都會發生
+        - 不適用
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截圖、錄影或 console 訊息
+      description: 可直接拖入檔案；請先遮蔽個人資料與敏感資訊。
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他補充
+      description: 例如發生頻率、網路狀態、是否使用無痕模式或是否可在其他裝置重現。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 送出前確認
+      options:
+        - label: 我已搜尋現有 Issue，沒有找到相同問題。
+          required: true
+        - label: 我已移除密碼、Token、Cookie 與其他敏感資料。
+          required: true

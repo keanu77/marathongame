@@ -793,6 +793,8 @@ test('分享成績在支援時附上 PNG 成績卡', async ({ page }) => {
   await page.locator('[data-score-name]').fill('阿跑');
   await page.locator('[data-score-submit]').click();
   await expect(page.locator('[data-score-save-status]')).toContainText('通過伺服器驗證');
+  const shareButton = page.locator('[data-share-button]');
+  await expect(shareButton).toHaveAttribute('data-share-image-state', 'ready');
 
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'canShare', {
@@ -816,7 +818,7 @@ test('分享成績在支援時附上 PNG 成績卡', async ({ page }) => {
     });
   });
 
-  await page.locator('[data-share-button]').click();
+  await shareButton.click();
   await expect(page.locator('[data-share-status]')).toHaveText('成績卡已分享！');
   expect(await page.evaluate(() => window.__SHARE_TEST__)).toEqual({
     text: expect.stringContaining('排行榜第 1 名'),
@@ -833,6 +835,8 @@ test('不支援圖片 Web Share 時仍可儲存 FB／IG 方形成績圖', async 
   await page.locator('[data-score-name]').fill('分享跑者');
   await page.locator('[data-score-submit]').click();
   await expect(page.locator('[data-score-save-status]')).toContainText('第 1 名');
+  const shareButton = page.locator('[data-share-button]');
+  await expect(shareButton).toHaveAttribute('data-share-image-state', 'ready');
 
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'canShare', {
@@ -853,7 +857,7 @@ test('不支援圖片 Web Share 時仍可儲存 FB／IG 方形成績圖', async 
     });
   });
 
-  await page.locator('[data-share-button]').click();
+  await shareButton.click();
   await expect(page.locator('[data-share-status]')).toContainText('儲存分享圖');
   expect(await page.evaluate(() => window.__SHARE_TEST__)).toMatchObject({
     text: expect.stringContaining('排行榜第 1 名'),

@@ -132,6 +132,27 @@ describe('GameUI', () => {
     expect(footer?.inert).toBe(false);
   });
 
+  it('開始前與排行榜送出表單都明示網路資料處理與隱私提醒', () => {
+    ui = new GameUI({ root: '#app' });
+
+    const startButton = document.querySelector<HTMLButtonElement>('[data-testid="start-button"]');
+    const networkNotice = document.querySelector<HTMLElement>('#network-run-privacy');
+    const networkPrivacyLink = networkNotice?.querySelector<HTMLAnchorElement>('a');
+    const input = document.querySelector<HTMLInputElement>('[data-score-name]');
+    const notice = document.querySelector<HTMLElement>('#score-save-privacy');
+    const privacyLink = notice?.querySelector<HTMLAnchorElement>('a');
+
+    expect(startButton?.getAttribute('aria-describedby')).toContain('network-run-privacy');
+    expect(networkNotice?.textContent).toContain('約每 10 秒傳送遊戲進度');
+    expect(networkNotice?.textContent).toContain('結算成績不會自動上榜');
+    expect(networkPrivacyLink?.getAttribute('href')).toBe('./PRIVACY.md');
+    expect(input?.getAttribute('aria-describedby')).toContain('score-save-privacy');
+    expect(notice?.textContent).toContain('請勿填入真名或敏感資訊');
+    expect(privacyLink?.getAttribute('href')).toBe('./PRIVACY.md');
+    expect(privacyLink?.rel).toContain('noopener');
+    expect(privacyLink?.rel).toContain('noreferrer');
+  });
+
   it('核心操作與狀態使用一致的 SVG 圖示並保留文字標籤', () => {
     ui = new GameUI({ root: '#app' });
 
@@ -658,7 +679,7 @@ describe('GameUI', () => {
     const homeButton = document.querySelector<HTMLButtonElement>('[data-home-button]');
     expect(input?.maxLength).toBe(12);
     expect(submit?.textContent?.trim()).toBe('送出並記錄');
-    expect(status?.textContent).toContain('成績不會自動上傳');
+    expect(status?.textContent).toContain('排行榜成績不會自動送出');
     expect(status?.textContent).toContain('請輸入暱稱並按「送出並記錄」');
 
     submit?.click();
@@ -694,7 +715,7 @@ describe('GameUI', () => {
     expect(input?.disabled).toBe(false);
     expect(submit?.disabled).toBe(false);
     expect(submit?.textContent).toBe('送出並記錄');
-    expect(status?.textContent).toContain('成績不會自動上傳');
+    expect(status?.textContent).toContain('排行榜成績不會自動送出');
 
     if (input) input.value = '重試者';
     submit?.click();
@@ -720,7 +741,7 @@ describe('GameUI', () => {
     );
   });
 
-  it('排行榜名次在 Canvas 產生期間更新時，分享會等待並使用最新版內容', async () => {
+  it('分享圖未就緒時立即分享最新文字，且舊世代不會覆蓋當代圖片', async () => {
     vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Chrome');
     const context = createShareCanvasContextStub();
     const blobCallbacks: BlobCallback[] = [];
@@ -748,17 +769,32 @@ describe('GameUI', () => {
       stageName: '正式比賽',
     });
 
-    document.querySelector<HTMLButtonElement>('[data-share-button]')?.click();
     ui.setScoreSaved(2, '名次跑者');
     expect(blobCallbacks).toHaveLength(2);
 
+    const shareButton = document.querySelector<HTMLButtonElement>('[data-share-button]');
+    expect(shareButton?.dataset.shareImageState).toBe('pending');
+
+    shareButton?.click();
+    expect(share).toHaveBeenCalledOnce();
+    expect(share.mock.calls[0]?.[0]).toMatchObject({
+      text: expect.stringContaining('排行榜第 2 名'),
+    });
+    expect(share.mock.calls[0]?.[0]).not.toHaveProperty('files');
+
     blobCallbacks[0]?.(new Blob(['old'], { type: 'image/png' }));
     await Promise.resolve();
-    expect(share).not.toHaveBeenCalled();
-    blobCallbacks[1]?.(new Blob(['latest'], { type: 'image/png' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(shareButton?.dataset.shareImageState).toBe('pending');
 
-    await vi.waitFor(() => expect(share).toHaveBeenCalledOnce());
-    expect(share.mock.calls[0]?.[0]).toMatchObject({
+    blobCallbacks[1]?.(new Blob(['latest'], { type: 'image/png' }));
+    await vi.waitFor(() => expect(shareButton?.dataset.shareImageState).toBe('ready'));
+    await vi.waitFor(() => expect(shareButton?.disabled).toBe(false));
+
+    shareButton?.click();
+    expect(share).toHaveBeenCalledTimes(2);
+    expect(share.mock.calls[1]?.[0]).toMatchObject({
       text: expect.stringContaining('排行榜第 2 名'),
       files: [expect.any(File)],
     });

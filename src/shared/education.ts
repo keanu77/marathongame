@@ -5,6 +5,16 @@ export interface EducationSource {
   readonly url: string;
 }
 
+/** 公開衛教內容的版本與治理狀態；不能取代逐條專業簽核紀錄。 */
+export interface EducationContentMetadata {
+  readonly version: string;
+  /** ISO 8601 日期（YYYY-MM-DD）。 */
+  readonly updatedAt: string;
+  readonly maintainedBy: string;
+  readonly reviewStatus: 'pending' | 'reviewed';
+  readonly scope: string;
+}
+
 /** 一張可在結算頁快速讀完的非個人化衛教提醒。 */
 export interface EducationReminderCard {
   readonly id: string;

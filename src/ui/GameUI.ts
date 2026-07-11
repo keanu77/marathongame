@@ -221,7 +221,12 @@ const UI_MARKUP = `
             </div>
 
             <div class="home-actions">
-              <button class="button button--primary button--large" data-testid="start-button" type="button">
+              <button
+                class="button button--primary button--large"
+                data-testid="start-button"
+                type="button"
+                aria-describedby="network-run-privacy"
+              >
                 <span class="ui-icon ui-icon--play" aria-hidden="true">${UI_ICONS.play}</span>
                 開始備賽
               </button>
@@ -235,6 +240,10 @@ const UI_MARKUP = `
                 跨裝置排行榜
               </button>
             </div>
+            <p id="network-run-privacy" class="network-run-privacy">
+              開始後會建立網路驗證跑局，並約每 10 秒傳送遊戲進度、道具數與遊戲內體力／風險；不輸入暱稱也能玩，結算成績不會自動上榜。
+              <a href="./PRIVACY.md" target="_blank" rel="noopener noreferrer">隱私說明</a>
+            </p>
             <p class="home-hint">每一關都會更快；量力而為，完賽比硬撐重要。</p>
           </div>
         </section>
@@ -565,14 +574,22 @@ const UI_MARKUP = `
                   autocomplete="nickname"
                   enterkeyhint="done"
                   placeholder="輸入暱稱"
-                  aria-describedby="score-save-status"
+                  aria-describedby="score-save-privacy score-save-status"
                 />
                 <button class="button button--save" data-score-submit type="submit">
                   送出並記錄
                 </button>
               </div>
+              <p id="score-save-privacy" class="score-save-privacy">
+                暱稱、成績與驗證資料會送至伺服器；暱稱與成績可能公開。請勿填入真名或敏感資訊。
+                <a
+                  href="./PRIVACY.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >隱私說明</a>
+              </p>
               <p id="score-save-status" class="score-save-status" data-score-save-status aria-live="polite">
-                成績不會自動上傳；請輸入暱稱並按「送出並記錄」。
+                排行榜成績不會自動送出；請輸入暱稱並按「送出並記錄」。
               </p>
             </form>
 
@@ -581,7 +598,12 @@ const UI_MARKUP = `
                 <span class="ui-icon ui-icon--restart" aria-hidden="true">${UI_ICONS.restart}</span>
                 <span data-restart-label>調整策略再挑戰</span>
               </button>
-              <button class="button button--secondary" data-share-button type="button">
+              <button
+                class="button button--secondary"
+                data-share-button
+                data-share-image-state="unavailable"
+                type="button"
+              >
                 <span class="ui-icon ui-icon--share" aria-hidden="true">${UI_ICONS.share}</span>
                 分享成績
               </button>
@@ -728,6 +750,7 @@ export class GameUI {
   private shareText = '';
   private shareCardInput: ShareCardInput | null = null;
   private shareCardFilePromise: Promise<File | null> | null = null;
+  private readyShareCard: { generation: number; file: File } | null = null;
   private shareContentGeneration = 0;
   private scoreSubmissionPending = false;
   private shareAssetOperationPending = false;
@@ -906,8 +929,7 @@ export class GameUI {
       stageName,
     };
     this.shareText = summary.shareText?.trim() || buildShareText(this.shareCardInput);
-    this.shareCardFilePromise = this.prepareShareCardFile(this.shareCardInput);
-    this.shareContentGeneration += 1;
+    this.startShareCardGeneration(this.shareCardInput);
     this.gameOverScreen.dataset.outcome = outcome;
     this.element<HTMLElement>('[data-outcome-banner]').dataset.outcome = outcome;
     this.element<HTMLElement>('[data-result-reason-box]').dataset.outcome = outcome;
@@ -1112,7 +1134,7 @@ export class GameUI {
     button.disabled = false;
     button.textContent = '送出並記錄';
     status.removeAttribute('data-state');
-    status.textContent = '成績不會自動上傳；請輸入暱稱並按「送出並記錄」。';
+    status.textContent = '排行榜成績不會自動送出；請輸入暱稱並按「送出並記錄」。';
     this.setScoreSubmissionPending(false);
   }
 
@@ -1719,7 +1741,10 @@ export class GameUI {
     this.setShareAssetOperationPending(true);
 
     try {
-      const payload = await this.getLatestShareContent();
+      // Web Share requires transient user activation. Snapshot only the image
+      // that has already finished in the current generation so navigator.share
+      // is invoked before this click handler reaches its first await.
+      const payload = this.getReadyShareContent();
       text = payload.text;
       if (!text) {
         status.textContent = '目前沒有可分享的成績。';
@@ -1805,9 +1830,19 @@ export class GameUI {
     while (true) {
       const generation = this.shareContentGeneration;
       const text = this.shareText.trim();
-      const file = await (this.shareCardFilePromise ?? Promise.resolve(null));
-      if (generation === this.shareContentGeneration) return { text, file };
+      const filePromise = this.shareCardFilePromise;
+      const file = await (filePromise ?? Promise.resolve(null));
+      if (generation === this.shareContentGeneration && filePromise === this.shareCardFilePromise) {
+        return { text, file };
+      }
     }
+  }
+
+  private getReadyShareContent(): { text: string; file: File | null } {
+    const generation = this.shareContentGeneration;
+    const readyFile =
+      this.readyShareCard?.generation === generation ? this.readyShareCard.file : null;
+    return { text: this.shareText.trim(), file: readyFile };
   }
 
   private setScoreSubmissionPending(pending: boolean): void {
@@ -1874,11 +1909,34 @@ export class GameUI {
     return createShareCardFile(input);
   }
 
+  private startShareCardGeneration(input: ShareCardInput): void {
+    const generation = this.shareContentGeneration + 1;
+    this.shareContentGeneration = generation;
+    this.readyShareCard = null;
+    this.element<HTMLButtonElement>('[data-share-button]').dataset.shareImageState = 'pending';
+
+    const filePromise = this.prepareShareCardFile(input).catch(() => null);
+    this.shareCardFilePromise = filePromise;
+    void filePromise.then((file) => {
+      if (
+        this.eventController.signal.aborted ||
+        generation !== this.shareContentGeneration ||
+        filePromise !== this.shareCardFilePromise
+      ) {
+        return;
+      }
+
+      this.readyShareCard = file ? { generation, file } : null;
+      this.element<HTMLButtonElement>('[data-share-button]').dataset.shareImageState = file
+        ? 'ready'
+        : 'unavailable';
+    });
+  }
+
   private refreshShareContent(): void {
     if (this.shareCardInput === null) return;
     this.shareText = buildShareText(this.shareCardInput);
-    this.shareCardFilePromise = this.prepareShareCardFile(this.shareCardInput);
-    this.shareContentGeneration += 1;
+    this.startShareCardGeneration(this.shareCardInput);
   }
 
   private text(selector: string, value: string): void {
