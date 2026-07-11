@@ -8,7 +8,6 @@ vi.mock('phaser', () => ({
 
 import {
   getRunnerAirPhase,
-  getRunnerLandingCompression,
   getRunnerResumeAnimationElapsed,
   getRunnerRunCyclePhase,
   RUNNER_ANIMATION_TIMING,
@@ -45,13 +44,5 @@ describe('Player motion design', () => {
     expect(getRunnerAirPhase(-500, resumedElapsed)).toBe('ascent');
     expect(getRunnerAirPhase(500, resumedElapsed)).toBe('descent');
     expect(getRunnerResumeAnimationElapsed('running')).toBe(0);
-  });
-
-  it('normalizes landing compression to a short, bounded recovery', () => {
-    expect(getRunnerLandingCompression(RUNNER_ANIMATION_TIMING.landingCompressionMs)).toBe(1);
-    expect(getRunnerLandingCompression(RUNNER_ANIMATION_TIMING.landingCompressionMs / 2)).toBe(0.5);
-    expect(getRunnerLandingCompression(0)).toBe(0);
-    expect(getRunnerLandingCompression(-100)).toBe(0);
-    expect(getRunnerLandingCompression(Number.POSITIVE_INFINITY)).toBe(0);
   });
 });

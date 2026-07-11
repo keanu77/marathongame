@@ -233,5 +233,5 @@ describe('固定 seed 的三關平衡假設模型', () => {
     expect(reachedRaceRate).toBeGreaterThan(completionRate);
     expect(completionRate).toBeGreaterThanOrEqual(0.3);
     expect(completionRate).toBeLessThanOrEqual(0.5);
-  });
+  }, 15_000);
 });

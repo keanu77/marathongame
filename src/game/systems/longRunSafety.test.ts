@@ -109,5 +109,5 @@ describe('長局穩定性', () => {
       expect(effects.paceRemainingSeconds).toBeGreaterThanOrEqual(0);
       expect([null, 'zone2', 'lsd', 'interval']).toContain(effects.paceMode);
     }
-  });
+  }, 15_000);
 });

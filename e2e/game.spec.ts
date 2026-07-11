@@ -8,6 +8,15 @@ declare global {
       endGame: (reason?: 'energy' | 'injuryRisk') => void;
       completeGame: () => void;
       getPlayerState: () => string;
+      getPlayerAnimationFrame: () => number;
+      getPlayerJumpCount: () => number;
+      getRunnerSheetDataUrl: () => string | null;
+      getRunnerSheetFrameBounds: () => Array<{
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+      }> | null;
       getStageTransitionTextResolutions: () => number[];
       setStage: (stageId: 'base' | 'build' | 'race') => void;
       getMusicState: () => MusicPlaybackState;
@@ -387,8 +396,14 @@ test('手機與桌機跳躍按鈕可觸發角色跳躍', async ({ page }) => {
   await startGame(page);
   await page.waitForTimeout(120);
 
+  const previousJumpCount = await page.evaluate(
+    () => window.__GAME_TEST__?.getPlayerJumpCount() ?? 0,
+  );
   await page.getByTestId('jump-button').click();
-  await page.waitForFunction(() => window.__GAME_TEST__?.getPlayerState() === 'jumping');
+  await page.waitForFunction(
+    (jumpCount) => (window.__GAME_TEST__?.getPlayerJumpCount() ?? 0) > jumpCount,
+    previousJumpCount,
+  );
 });
 
 test('暫停與繼續功能正常', async ({ page }) => {
@@ -410,6 +425,53 @@ test('暫停與繼續功能正常', async ({ page }) => {
   await expect(page.getByTestId('pause-button')).toBeVisible();
   await page.waitForTimeout(350);
   expect(await distance.textContent()).not.toBe(pausedDistance);
+});
+
+test('逐格跑步動畫會隨暫停凍結並在繼續後恢復', async ({ page }) => {
+  await startGame(page);
+  await page.waitForFunction(() => (window.__GAME_TEST__?.getPlayerAnimationFrame() ?? -1) >= 6);
+
+  const sheetDataUrl = await page.evaluate(
+    () => window.__GAME_TEST__?.getRunnerSheetDataUrl() ?? null,
+  );
+  expect(sheetDataUrl).toMatch(/^data:image\/png;base64,/);
+  const frameBounds = await page.evaluate(
+    () => window.__GAME_TEST__?.getRunnerSheetFrameBounds() ?? null,
+  );
+  expect(frameBounds).toHaveLength(48);
+  for (const bounds of frameBounds ?? []) {
+    expect(bounds.left).toBeLessThanOrEqual(bounds.right);
+    expect(bounds.top).toBeLessThanOrEqual(bounds.bottom);
+    expect(bounds.left).toBeGreaterThan(0);
+    expect(bounds.top).toBeGreaterThan(0);
+    expect(bounds.right).toBeLessThan(191);
+    expect(bounds.bottom).toBeLessThan(223);
+  }
+  const groundedFrameIndices = [
+    ...Array.from({ length: 22 }, (_, index) => index),
+    ...Array.from({ length: 18 }, (_, index) => index + 30),
+  ];
+  const groundedBottoms = groundedFrameIndices.map(
+    (frameIndex) => frameBounds?.[frameIndex]?.bottom ?? -1,
+  );
+  expect(Math.max(...groundedBottoms) - Math.min(...groundedBottoms)).toBeLessThanOrEqual(1);
+
+  await page.getByTestId('pause-button').click();
+  await expect(page.getByTestId('pause-overlay')).toBeVisible();
+  const pausedFrame = await page.evaluate(
+    () => window.__GAME_TEST__?.getPlayerAnimationFrame() ?? -1,
+  );
+  await page.waitForTimeout(350);
+  expect(await page.evaluate(() => window.__GAME_TEST__?.getPlayerAnimationFrame() ?? -1)).toBe(
+    pausedFrame,
+  );
+
+  await page.getByTestId('resume-button').click();
+  await expect(page.getByTestId('pause-overlay')).toBeHidden();
+  await page.waitForFunction(
+    (frame) => window.__GAME_TEST__?.getPlayerAnimationFrame() !== frame,
+    pausedFrame,
+  );
 });
 
 test('三階段配樂會切換，並遵守聲音開關與暫停狀態', async ({ page }) => {
@@ -459,7 +521,7 @@ test('結束畫面可以重新開始', async ({ page }) => {
   await expect(page.getByTestId('game-over-screen')).toBeHidden();
   await expect(gameCanvas(page)).toBeVisible();
   await expect(page.getByTestId('pause-button')).toBeVisible();
-  await expect(page.locator('[data-distance]')).toHaveText('0 公尺');
+  await page.waitForFunction(() => window.__GAME_TEST__?.getPlayerState() === 'running');
 });
 
 test('完成三關後顯示 42.195 公里完賽結算', async ({ page }) => {

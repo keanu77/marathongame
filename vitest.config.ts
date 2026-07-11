@@ -13,6 +13,9 @@ export default defineConfig({
     globals: true,
     clearMocks: true,
     restoreMocks: true,
+    // Phaser/jsdom suites are memory-heavy; cap file concurrency so fixed
+    // 5-second safety tests do not time out from host oversubscription.
+    maxWorkers: 4,
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'tests/**/*.test.ts'],
   },
 });

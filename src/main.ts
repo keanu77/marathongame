@@ -1,6 +1,6 @@
 import './styles.css';
 
-import { GAME_CONFIG } from './game/config';
+import { GAME_CONFIG, RUNNER_SPRITE_SHEET } from './game/config';
 import {
   GAME_OVER_REASON_LABELS,
   MARATHON_STAGE_LABELS,
@@ -36,6 +36,15 @@ declare global {
       endGame: (reason?: 'energy' | 'injuryRisk') => void;
       completeGame: () => void;
       getPlayerState: () => string;
+      getPlayerAnimationFrame: () => number;
+      getPlayerJumpCount: () => number;
+      getRunnerSheetDataUrl: () => string | null;
+      getRunnerSheetFrameBounds: () => Array<{
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+      }> | null;
       getStageTransitionTextResolutions: () => number[];
       setStage: (stageId: MarathonStageId) => void;
       getMusicState: () => MusicPlaybackState;
@@ -253,6 +262,49 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     endGame: (reason = 'energy') => getScene()?.forceGameOver(reason),
     completeGame: () => getScene()?.forceComplete(),
     getPlayerState: () => getScene()?.getPlayerState() ?? 'unavailable',
+    getPlayerAnimationFrame: () => getScene()?.getPlayerAnimationFrame() ?? -1,
+    getPlayerJumpCount: () => getScene()?.getSuccessfulJumpCount() ?? 0,
+    getRunnerSheetDataUrl: () => {
+      const textureKey = game.textures
+        .getTextureKeys()
+        .find((key) => key.startsWith('marathon-runner'));
+      if (!textureKey) return null;
+      const source = game.textures.get(textureKey).getSourceImage() as HTMLCanvasElement;
+      return typeof source.toDataURL === 'function' ? source.toDataURL('image/png') : null;
+    },
+    getRunnerSheetFrameBounds: () => {
+      const textureKey = game.textures
+        .getTextureKeys()
+        .find((key) => key.startsWith('marathon-runner'));
+      if (!textureKey) return null;
+      const source = game.textures.get(textureKey).getSourceImage() as HTMLCanvasElement;
+      const context = source.getContext('2d', { willReadFrequently: true });
+      if (!context) return null;
+      const { data } = context.getImageData(0, 0, source.width, source.height);
+
+      return Array.from({ length: RUNNER_SPRITE_SHEET.frameCount }, (_, frameIndex) => {
+        const frameX = (frameIndex % RUNNER_SPRITE_SHEET.columns) * RUNNER_SPRITE_SHEET.frameWidth;
+        const frameY =
+          Math.floor(frameIndex / RUNNER_SPRITE_SHEET.columns) * RUNNER_SPRITE_SHEET.frameHeight;
+        let left: number = RUNNER_SPRITE_SHEET.frameWidth;
+        let top: number = RUNNER_SPRITE_SHEET.frameHeight;
+        let right = -1;
+        let bottom = -1;
+
+        for (let y = 0; y < RUNNER_SPRITE_SHEET.frameHeight; y += 1) {
+          for (let x = 0; x < RUNNER_SPRITE_SHEET.frameWidth; x += 1) {
+            const alphaIndex = ((frameY + y) * source.width + frameX + x) * 4 + 3;
+            if (data[alphaIndex] === 0) continue;
+            left = Math.min(left, x);
+            top = Math.min(top, y);
+            right = Math.max(right, x);
+            bottom = Math.max(bottom, y);
+          }
+        }
+
+        return { left, top, right, bottom };
+      });
+    },
     getStageTransitionTextResolutions: () => getScene()?.getStageTransitionTextResolutions() ?? [],
     setStage: (stageId) => getScene()?.forceStage(stageId),
     getMusicState: () => soundManager.getMusicState(),

@@ -109,6 +109,8 @@ export interface GameConfig {
   readonly tutorialBackdropSpeed: number;
   readonly hudUpdateIntervalMs: number;
   readonly tutorialHeightAboveGround: number;
+  /** First-jump confirmation sits right of the runner's airborne silhouette. */
+  readonly tutorialSuccessMessageX: number;
   readonly tutorialRisePixels: number;
   readonly tutorialDelayMs: number;
   readonly tutorialFadeDurationMs: number;
@@ -299,6 +301,7 @@ export const GAME_CONFIG = {
   tutorialBackdropSpeed: 120,
   hudUpdateIntervalMs: 100,
   tutorialHeightAboveGround: 178,
+  tutorialSuccessMessageX: 350,
   tutorialRisePixels: 16,
   tutorialDelayMs: 2_600,
   tutorialFadeDurationMs: 650,

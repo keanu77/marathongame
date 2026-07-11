@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene {
   private spawnSystemsStarted = false;
   private tutorialGateRemainingMs = 0;
   private finishApproachStarted = false;
+  private successfulJumpCount = 0;
 
   private readonly renderScale: RenderScale;
 
@@ -300,6 +301,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.resume();
     this.time.paused = false;
     this.tweens.resumeAll();
+    this.player.setAnimationPaused(false);
 
     this.marathonState = createInitialMarathonRunState();
     const initialSpeedMultiplier = getMarathonEffectiveSpeedMultiplier(
@@ -322,6 +324,7 @@ export class GameScene extends Phaser.Scene {
     this.hudUpdateAccumulatorMs = 0;
     this.spawnSystemsStarted = false;
     this.finishApproachStarted = false;
+    this.successfulJumpCount = 0;
     this.tutorialGateRemainingMs = this.hasCompletedFirstRunTutorial
       ? 0
       : GAME_CONFIG.firstRunTutorialAutoStartSeconds * 1_000;
@@ -366,6 +369,7 @@ export class GameScene extends Phaser.Scene {
     if (shouldPause && this.runState === 'running') {
       this.runState = 'paused';
       this.playerController.setEnabled(false);
+      this.player.setAnimationPaused(true);
       this.physics.world.pause();
       this.tweens.pauseAll();
       this.time.paused = true;
@@ -374,6 +378,7 @@ export class GameScene extends Phaser.Scene {
       this.time.paused = false;
       this.physics.world.resume();
       this.tweens.resumeAll();
+      this.player.setAnimationPaused(false);
       this.playerController.setEnabled(true);
     }
 
@@ -390,6 +395,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.resume();
     this.time.paused = false;
     this.tweens.resumeAll();
+    this.player.setAnimationPaused(false);
     this.setIdleState();
   }
 
@@ -466,6 +472,14 @@ export class GameScene extends Phaser.Scene {
     return this.player.getRunnerState();
   }
 
+  public getPlayerAnimationFrame(): number {
+    return this.player.getAnimationFrameIndex();
+  }
+
+  public getSuccessfulJumpCount(): number {
+    return this.successfulJumpCount;
+  }
+
   public getStageTransitionTextResolutions(): number[] {
     const card = this.stageTransitionCard;
     if (!card) return [];
@@ -480,6 +494,7 @@ export class GameScene extends Phaser.Scene {
     this.runState = 'idle';
     this.spawnSystemsStarted = false;
     this.finishApproachStarted = false;
+    this.successfulJumpCount = 0;
     this.invulnerabilityRemainingMs = 0;
     this.invulnerabilityActivatedThisFrame = false;
     this.knowledgeReview = [];
@@ -494,6 +509,7 @@ export class GameScene extends Phaser.Scene {
     this.itemSpawner?.setStage('base');
     this.clearStageTransition();
     if (this.player) {
+      this.player.setAnimationPaused(false);
       this.player.body.reset(
         GAME_CONFIG.playerStartX,
         GAME_CONFIG.groundY - GAME_CONFIG.playerHeight / 2,
@@ -505,13 +521,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleSuccessfulJump(): void {
+    this.successfulJumpCount += 1;
     gameEventBus.emit(GAME_EVENTS.sound, 'jump');
     this.runEffects.emitJump(this.player.x, GAME_CONFIG.groundY);
 
     if (!this.spawnSystemsStarted && this.runState === 'running') {
       this.hasCompletedFirstRunTutorial = true;
       this.startSpawnSystems();
-      this.showTutorialMessage('很好！收集訓練道具，跳過身體警訊', GAME_CONFIG.tutorialDelayMs);
+      this.showTutorialMessage(
+        '很好！\n接著收集道具、跳過警訊',
+        GAME_CONFIG.tutorialDelayMs,
+        GAME_CONFIG.tutorialSuccessMessageX,
+      );
     }
   }
 
@@ -685,6 +706,7 @@ export class GameScene extends Phaser.Scene {
       this.player.markGameOver();
       this.runEffects.emitStopped(this.player.x, GAME_CONFIG.groundY);
     }
+    this.player.setAnimationPaused(false);
     this.physics.world.pause();
     this.tutorialText.setAlpha(0);
 
@@ -743,11 +765,16 @@ export class GameScene extends Phaser.Scene {
     return Math.round(Math.min(1, Math.max(0, progress)) * MARATHON_CONFIG.officialDistanceMeters);
   }
 
-  private showTutorialMessage(text: string, holdMs?: number): void {
+  private showTutorialMessage(
+    text: string,
+    holdMs?: number,
+    x = GAME_CONFIG.canvasWidth / 2,
+  ): void {
     this.tweens.killTweensOf(this.tutorialText);
     this.tutorialText
       .setText(text)
       .setAlpha(1)
+      .setX(x)
       .setY(GAME_CONFIG.groundY - GAME_CONFIG.tutorialHeightAboveGround);
 
     if (holdMs === undefined) return;
