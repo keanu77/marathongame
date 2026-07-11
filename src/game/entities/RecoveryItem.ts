@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import type { RecoveryItemType } from '../types';
 
 const ITEM_COLORS: Record<RecoveryItemType, number> = {
-  sleep: 0x6f6ccf,
+  sleep: 0x7467c8,
   strength: 0xe76f51,
   nutrition: 0xf4b942,
   zone2: 0x2a9d8f,
@@ -11,7 +11,14 @@ const ITEM_COLORS: Record<RecoveryItemType, number> = {
   interval: 0xe85d75,
 };
 
-/** Runtime geometry placeholder; replace drawPlaceholder with a sprite later. */
+const ITEM_ART_COLORS = {
+  navy: 0x17324d,
+  deepNavy: 0x10283d,
+  cream: 0xfff8ea,
+  white: 0xffffff,
+} as const;
+
+/** Cohesive runtime vector badges for recovery and training pickups. */
 export class RecoveryItem extends Phaser.GameObjects.Container {
   public readonly itemType: RecoveryItemType;
   declare public body: Phaser.Physics.Arcade.Body;
@@ -30,15 +37,17 @@ export class RecoveryItem extends Phaser.GameObjects.Container {
     this.body.setAllowGravity(false);
     this.body.setImmovable(true);
 
-    this.drawPlaceholder(type);
-    scene.tweens.add({
-      targets: this,
-      y: y - 8,
-      duration: 650,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.inOut',
-    });
+    this.drawItemBadge(type);
+    if (!RecoveryItem.prefersReducedMotion()) {
+      scene.tweens.add({
+        targets: this,
+        y: y - 8,
+        duration: 650,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       scene.tweens.killTweensOf(this);
     });
@@ -48,13 +57,25 @@ export class RecoveryItem extends Phaser.GameObjects.Container {
     this.body.setVelocityX(-speed);
   }
 
-  private drawPlaceholder(type: RecoveryItemType): void {
+  private drawItemBadge(type: RecoveryItemType): void {
     const graphics = this.scene.add.graphics();
     const color = ITEM_COLORS[type];
-    graphics.fillStyle(0xffffff, 0.98);
+    const { navy, deepNavy, cream, white } = ITEM_ART_COLORS;
+
+    graphics.fillStyle(deepNavy, 0.2);
+    graphics.fillEllipse(1, 5, 57, 49);
+    graphics.fillStyle(color, 0.15);
+    graphics.fillCircle(0, 0, 31);
+    graphics.fillStyle(navy, 1);
     graphics.fillCircle(0, 0, 27);
-    graphics.lineStyle(4, color, 1);
-    graphics.strokeCircle(0, 0, 24);
+    graphics.fillStyle(color, 1);
+    graphics.fillCircle(0, 0, 24);
+    graphics.fillStyle(cream, 1);
+    graphics.fillCircle(0, 0, 19.5);
+    graphics.lineStyle(1.5, white, 0.72);
+    graphics.strokeCircle(0, 0, 22);
+    graphics.fillStyle(white, 0.72);
+    graphics.fillEllipse(-7, -15, 11, 4);
     this.add(graphics);
 
     switch (type) {
@@ -80,96 +101,119 @@ export class RecoveryItem extends Phaser.GameObjects.Container {
   }
 
   private drawSleep(graphics: Phaser.GameObjects.Graphics, color: number): void {
+    const { cream, navy } = ITEM_ART_COLORS;
     graphics.fillStyle(color, 1);
-    graphics.fillCircle(-2, -2, 14);
-    graphics.fillStyle(0xffffff, 1);
-    graphics.fillCircle(5, -7, 13);
-    graphics.fillStyle(0xffd166, 1);
-    graphics.fillCircle(13, 11, 2.5);
+    graphics.fillCircle(-2, -1, 12);
+    graphics.fillStyle(cream, 1);
+    graphics.fillCircle(4, -6, 11);
+    graphics.fillStyle(navy, 1);
+    graphics.fillTriangle(9, 6, 11, 10, 7, 10);
+    graphics.fillTriangle(14, 1, 16, 5, 12, 5);
   }
 
   private drawStrength(graphics: Phaser.GameObjects.Graphics, color: number): void {
-    graphics.lineStyle(7, color, 1);
+    const { navy } = ITEM_ART_COLORS;
+    graphics.lineStyle(5, color, 1);
     graphics.beginPath();
-    graphics.moveTo(-14, 0);
-    graphics.lineTo(14, 0);
+    graphics.moveTo(-12, 0);
+    graphics.lineTo(12, 0);
     graphics.strokePath();
-    graphics.lineStyle(6, color, 1);
+    graphics.lineStyle(5, navy, 1);
     graphics.beginPath();
-    graphics.moveTo(-17, -9);
-    graphics.lineTo(-17, 9);
-    graphics.moveTo(-11, -11);
-    graphics.lineTo(-11, 11);
-    graphics.moveTo(17, -9);
-    graphics.lineTo(17, 9);
-    graphics.moveTo(11, -11);
-    graphics.lineTo(11, 11);
+    graphics.moveTo(-15, -8);
+    graphics.lineTo(-15, 8);
+    graphics.moveTo(-10, -10);
+    graphics.lineTo(-10, 10);
+    graphics.moveTo(15, -8);
+    graphics.lineTo(15, 8);
+    graphics.moveTo(10, -10);
+    graphics.lineTo(10, 10);
     graphics.strokePath();
   }
 
   private drawNutrition(graphics: Phaser.GameObjects.Graphics, color: number): void {
+    const { cream, navy } = ITEM_ART_COLORS;
     graphics.fillStyle(color, 1);
-    graphics.fillRoundedRect(-14, -18, 28, 36, 7);
-    graphics.lineStyle(2.5, 0xffffff, 1);
+    graphics.fillRoundedRect(-12, -15, 24, 30, 6);
+    graphics.fillStyle(navy, 1);
+    graphics.fillRoundedRect(-12, -15, 24, 6, 3);
+    graphics.fillStyle(cream, 1);
+    graphics.fillEllipse(0, 2, 9, 14);
+    graphics.lineStyle(2, navy, 1);
     graphics.beginPath();
-    graphics.moveTo(-7, 5);
-    graphics.lineTo(-1, -4);
-    graphics.lineTo(5, 3);
-    graphics.lineTo(10, -7);
+    graphics.moveTo(0, 8);
+    graphics.lineTo(0, -4);
+    graphics.lineTo(6, -8);
     graphics.strokePath();
   }
 
   private drawZone2(graphics: Phaser.GameObjects.Graphics, color: number): void {
+    const { cream, navy } = ITEM_ART_COLORS;
     graphics.fillStyle(color, 1);
-    graphics.fillCircle(0, 0, 17);
-    graphics.lineStyle(3, 0xffffff, 1);
+    graphics.fillRoundedRect(-16, -11, 32, 22, 8);
+    graphics.lineStyle(2.5, cream, 1);
     graphics.beginPath();
-    graphics.moveTo(-12, 1);
-    graphics.lineTo(-6, 1);
-    graphics.lineTo(-2, -7);
-    graphics.lineTo(4, 8);
-    graphics.lineTo(8, 1);
-    graphics.lineTo(13, 1);
+    graphics.moveTo(-13, 2);
+    graphics.lineTo(-8, 2);
+    graphics.lineTo(-5, -4);
+    graphics.lineTo(-1, 7);
+    graphics.lineTo(3, 2);
+    graphics.lineTo(7, 2);
     graphics.strokePath();
-    this.addBadgeText('Z2', 0, 13, '#ffffff', '10px');
+    this.addBadgeText('Z2', 10, -4, `#${navy.toString(16)}`, '9px');
   }
 
   private drawLsd(graphics: Phaser.GameObjects.Graphics, color: number): void {
+    const { cream, navy } = ITEM_ART_COLORS;
     graphics.fillStyle(color, 1);
-    graphics.fillRoundedRect(-17, -17, 34, 34, 11);
-    graphics.lineStyle(4, 0xffffff, 1);
+    graphics.fillRoundedRect(-16, -15, 32, 30, 10);
+    graphics.fillStyle(cream, 1);
+    graphics.fillTriangle(-12, 8, -3, -5, 2, 8);
+    graphics.fillTriangle(-2, 8, 8, -9, 14, 8);
+    graphics.lineStyle(2.5, navy, 1);
     graphics.beginPath();
-    graphics.moveTo(-11, 11);
-    graphics.lineTo(-4, 2);
-    graphics.lineTo(2, 7);
-    graphics.lineTo(11, -9);
+    graphics.moveTo(-13, 9);
+    graphics.lineTo(-6, 3);
+    graphics.lineTo(0, 7);
+    graphics.lineTo(10, -5);
     graphics.strokePath();
-    this.addBadgeText('LSD', 0, -11, '#ffffff', '9px');
+    this.addBadgeText('LSD', 0, -10, '#fff8ea', '8px');
   }
 
   private drawInterval(graphics: Phaser.GameObjects.Graphics, color: number): void {
+    const { cream, navy } = ITEM_ART_COLORS;
     graphics.fillStyle(color, 1);
-    graphics.fillCircle(0, 2, 16);
-    graphics.fillRoundedRect(-5, -20, 10, 6, 3);
-    graphics.lineStyle(3, 0xffffff, 1);
-    graphics.strokeCircle(0, 2, 11);
+    graphics.fillCircle(0, 2, 15);
+    graphics.fillRoundedRect(-5, -16, 10, 6, 3);
+    graphics.fillRoundedRect(10, -11, 7, 4, 2);
+    graphics.lineStyle(2.5, cream, 1);
+    graphics.strokeCircle(0, 2, 10);
     graphics.beginPath();
     graphics.moveTo(0, 2);
-    graphics.lineTo(7, -4);
-    graphics.moveTo(-7, 9);
-    graphics.lineTo(-3, 5);
+    graphics.lineTo(6, -4);
     graphics.strokePath();
+    graphics.fillStyle(navy, 1);
+    graphics.fillCircle(0, 2, 2.2);
   }
 
   private addBadgeText(text: string, x: number, y: number, color: string, fontSize: string): void {
     const label = this.scene.add
       .text(x, y, text, {
         color,
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: 'system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif',
         fontSize,
         fontStyle: 'bold',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(2);
     this.add(label);
+  }
+
+  private static prefersReducedMotion(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
   }
 }

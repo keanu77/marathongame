@@ -106,6 +106,15 @@ describe('GameUI', () => {
     expect(creatorLink?.target).toBe('_blank');
     expect(creatorLink?.rel).toContain('noopener');
     expect(creatorLink?.rel).toContain('noreferrer');
+    expect(footer?.hidden).toBe(false);
+
+    ui.showPlaying();
+    expect(footer?.hidden).toBe(true);
+    expect(document.querySelector('#app')?.getAttribute('data-game-view')).toBe('playing');
+
+    ui.setPaused(true);
+    expect(footer?.hidden).toBe(true);
+    expect(document.querySelector('#app')?.getAttribute('data-game-view')).toBe('paused');
 
     ui.showGameOver({
       distanceMeters: 100,
@@ -115,9 +124,37 @@ describe('GameUI', () => {
       educationMessage: '測試訊息',
       educationAction: '測試行動',
     });
+    expect(footer?.hidden).toBe(false);
     expect(footer?.inert).toBe(true);
     ui.showHome();
+    expect(footer?.hidden).toBe(false);
     expect(footer?.inert).toBe(false);
+  });
+
+  it('核心操作與狀態使用一致的 SVG 圖示並保留文字標籤', () => {
+    ui = new GameUI({ root: '#app' });
+
+    const coreIconSelectors = [
+      '[data-testid="pause-button"] .ui-icon--pause',
+      '[data-testid="sound-toggle"] .ui-icon--sound',
+      '[data-energy-meter] .ui-icon--energy',
+      '[data-risk-meter] .ui-icon--risk',
+      '[data-testid="jump-button"] .ui-icon--jump',
+      '[data-testid="leaderboard-home-button"] .ui-icon--leaderboard',
+      '[data-testid="leaderboard-result-button"] .ui-icon--leaderboard',
+    ];
+
+    coreIconSelectors.forEach((selector) => {
+      const icon = document.querySelector<HTMLElement>(selector);
+      expect(icon, selector).not.toBeNull();
+      expect(icon?.querySelector('svg'), selector).not.toBeNull();
+      expect(icon?.getAttribute('aria-hidden'), selector).toBe('true');
+    });
+
+    expect(document.querySelector('[data-testid="pause-button"]')?.textContent).toContain('暫停');
+    expect(document.querySelector('[data-testid="jump-button"]')?.textContent).toContain('跳躍');
+    expect(document.querySelector('[data-energy-meter]')?.textContent).toContain('體力');
+    expect(document.querySelector('[data-risk-meter]')?.textContent).toContain('受傷風險');
   });
 
   it('在場景就緒後可由首頁開始並顯示 HUD', () => {
@@ -188,17 +225,21 @@ describe('GameUI', () => {
     ui = new GameUI({ root: '#app', callbacks: { onSoundChange } });
 
     const soundButton = document.querySelector<HTMLButtonElement>('[data-testid="sound-toggle"]');
+    const soundIcon = document.querySelector<HTMLElement>('[data-sound-icon]');
     expect(soundButton?.getAttribute('aria-label')).toBe('關閉聲音');
     expect(document.querySelector('[data-sound-label]')?.textContent).toBe('聲音：開');
+    expect(soundIcon?.dataset.state).toBe('on');
 
     soundButton?.click();
     expect(onSoundChange).toHaveBeenLastCalledWith(false);
     expect(soundButton?.getAttribute('aria-label')).toBe('開啟聲音');
     expect(document.querySelector('[data-sound-label]')?.textContent).toBe('聲音：關');
+    expect(soundIcon?.dataset.state).toBe('off');
 
     soundButton?.click();
     expect(onSoundChange).toHaveBeenLastCalledWith(true);
     expect(document.querySelector('[data-sound-label]')?.textContent).toBe('聲音：開');
+    expect(soundIcon?.dataset.state).toBe('on');
   });
 
   it('觸發跳躍按鈕時會呼叫遊戲控制 callback', () => {
@@ -246,6 +287,18 @@ describe('GameUI', () => {
     expect(document.querySelector('[data-stage-step="2"]')?.getAttribute('aria-current')).toBe(
       'step',
     );
+    expect(document.querySelector('.hud-summary')?.getAttribute('data-priority')).toBe('secondary');
+    expect(document.querySelector('.hud-summary')?.getAttribute('aria-label')).toBe('本局次要資訊');
+
+    const hud = document.querySelector<HTMLElement>('.hud-layer');
+    const stage = document.querySelector<HTMLElement>('.stage-hud');
+    const vitals = document.querySelector<HTMLElement>('.vitals-card');
+    const status = document.querySelector<HTMLElement>('.status-region');
+    const summary = document.querySelector<HTMLElement>('.hud-summary');
+    const children = [...(hud?.children ?? [])];
+    expect(children.indexOf(stage as Element)).toBeLessThan(children.indexOf(vitals as Element));
+    expect(children.indexOf(vitals as Element)).toBeLessThan(children.indexOf(status as Element));
+    expect(children.indexOf(status as Element)).toBeLessThan(children.indexOf(summary as Element));
   });
 
   it('手機 HUD 可辨識沒有特殊狀態，並在效果啟用時標記為顯示', () => {

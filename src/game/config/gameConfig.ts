@@ -12,6 +12,8 @@ export interface PaceModeConfig {
 export interface GameConfig {
   readonly canvasWidth: number;
   readonly canvasHeight: number;
+  /** Canvas backing-buffer multiplier; gameplay coordinates remain canvasWidth × canvasHeight. */
+  readonly renderScale: number;
   readonly groundY: number;
   readonly playerStartX: number;
   readonly playerWidth: number;
@@ -100,6 +102,7 @@ export interface GameConfig {
 export const GAME_CONFIG = {
   canvasWidth: 540,
   canvasHeight: 960,
+  renderScale: 2,
   groundY: 800,
   playerStartX: 108,
   playerWidth: 58,

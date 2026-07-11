@@ -8,6 +8,7 @@ import { FinishGate } from '../entities/FinishGate';
 import type { Obstacle } from '../entities/Obstacle';
 import { Player } from '../entities/Player';
 import type { RecoveryItem } from '../entities/RecoveryItem';
+import { RunEffects } from '../entities/RunEffects';
 import { WorldBackdrop } from '../entities/WorldBackdrop';
 import { GAME_EVENTS, gameEventBus } from '../events/GameEventBus';
 import {
@@ -51,6 +52,38 @@ import type {
 
 type RunState = 'idle' | 'running' | 'paused' | 'gameOver';
 
+const STAGE_TRANSITION_THEME: Record<
+  MarathonStageId,
+  Readonly<{ accent: number; accentHex: string; phase: string; rhythm: string }>
+> = {
+  base: {
+    accent: 0x57d6bb,
+    accentHex: '#57d6bb',
+    phase: 'FOUNDATION',
+    rhythm: '130 BPM · 建立節奏',
+  },
+  build: {
+    accent: 0x5eb8f2,
+    accentHex: '#5eb8f2',
+    phase: 'BUILD UP',
+    rhythm: '150 BPM · 穩定加速',
+  },
+  race: {
+    accent: 0xff8a4c,
+    accentHex: '#ff8a4c',
+    phase: 'RACE DAY',
+    rhythm: '170 BPM · 奔向終點',
+  },
+};
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 export class GameScene extends Phaser.Scene {
   public static readonly KEY = 'GameScene';
 
@@ -62,6 +95,7 @@ export class GameScene extends Phaser.Scene {
   private itemSpawner!: ItemSpawner;
   private playerController!: PlayerController;
   private collisionSystem!: CollisionSystem;
+  private runEffects!: RunEffects;
   private tutorialText!: Phaser.GameObjects.Text;
   private stageTransitionCard?: Phaser.GameObjects.Container;
 
@@ -87,6 +121,12 @@ export class GameScene extends Phaser.Scene {
   public create(): void {
     const { canvasWidth, canvasHeight, groundY } = GAME_CONFIG;
 
+    // Render the 540 × 960 logical world into a 2× backing buffer. This keeps
+    // gameplay math stable while avoiding browser upscaling on retina screens.
+    this.cameras.main.setZoom(GAME_CONFIG.renderScale);
+    this.cameras.main.centerOn(canvasWidth / 2, canvasHeight / 2);
+    this.physics.world.setBounds(0, 0, canvasWidth, canvasHeight);
+
     this.backdrop = new WorldBackdrop(this, canvasWidth, canvasHeight, groundY);
     this.finishGate = new FinishGate(
       this,
@@ -108,6 +148,7 @@ export class GameScene extends Phaser.Scene {
       GAME_CONFIG.playerHeight,
     ).setDepth(5);
     this.physics.add.collider(this.player, this.ground);
+    this.runEffects = new RunEffects(this);
 
     const spawnX = canvasWidth + GAME_CONFIG.spawnAheadPixels;
     this.obstacleSpawner = new ObstacleSpawner(this, {
@@ -157,16 +198,17 @@ export class GameScene extends Phaser.Scene {
         groundY - GAME_CONFIG.tutorialHeightAboveGround,
         '點一下畫面、空白鍵或 ↑ 跳躍',
         {
-          color: '#17324d',
-          backgroundColor: 'rgba(255,255,255,0.9)',
+          color: '#ffffff',
+          backgroundColor: 'rgba(7,29,49,0.88)',
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '21px',
+          fontSize: '19px',
           fontStyle: 'bold',
-          padding: { x: 16, y: 10 },
+          padding: { x: 18, y: 10 },
           align: 'center',
         },
       )
       .setOrigin(0.5)
+      .setResolution(2)
       .setDepth(12)
       .setAlpha(0);
 
@@ -272,6 +314,7 @@ export class GameScene extends Phaser.Scene {
     this.invulnerabilityActivatedThisFrame = false;
     this.knowledgeReview = [];
     this.encounteredKnowledgeIds.clear();
+    this.runEffects.clear();
     this.hudUpdateAccumulatorMs = 0;
     this.spawnSystemsStarted = false;
     this.finishApproachStarted = false;
@@ -293,6 +336,7 @@ export class GameScene extends Phaser.Scene {
     this.runState = 'running';
     this.playerController.setEnabled(true);
     this.showStageTransition(this.marathonState.stage.stageId, 0);
+    this.runEffects.emitStage(this.marathonState.stage.stageId);
 
     if (this.hasCompletedFirstRunTutorial) {
       this.startSpawnSystems();
@@ -426,6 +470,7 @@ export class GameScene extends Phaser.Scene {
     this.invulnerabilityActivatedThisFrame = false;
     this.knowledgeReview = [];
     this.encounteredKnowledgeIds.clear();
+    this.runEffects?.clear();
     this.playerController?.setEnabled(false);
     this.obstacleSpawner?.reset();
     this.itemSpawner?.reset();
@@ -447,6 +492,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleSuccessfulJump(): void {
     gameEventBus.emit(GAME_EVENTS.sound, 'jump');
+    this.runEffects.emitJump(this.player.x, GAME_CONFIG.groundY);
 
     if (!this.spawnSystemsStarted && this.runState === 'running') {
       this.hasCompletedFirstRunTutorial = true;
@@ -480,6 +526,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.showStageTransition(stageId, stageIndex);
+    this.runEffects.emitStage(stageId);
     gameEventBus.emit(GAME_EVENTS.musicStageChanged, stageId);
     this.emitHud();
   }
@@ -496,7 +543,11 @@ export class GameScene extends Phaser.Scene {
     this.finishApproachStarted = true;
     this.obstacleSpawner.reset();
     this.itemSpawner.reset();
-    this.finishGate.show();
+    const alignedStartX = Math.max(
+      GAME_CONFIG.canvasWidth + GAME_CONFIG.finishGateSpawnOffsetPixels,
+      this.player.x + this.progress.speed * this.marathonState.stage.totalRemainingSeconds,
+    );
+    this.finishGate.show(alignedStartX);
     this.showTutorialMessage('終點就在前方！', GAME_CONFIG.stageTransitionDurationMs);
   }
 
@@ -526,6 +577,7 @@ export class GameScene extends Phaser.Scene {
     this.impactCounts = recordObstacleImpact(this.impactCounts, obstacle.obstacleType);
 
     this.player.showHurt(GAME_CONFIG.hurtAnimationSeconds * 1_000);
+    this.runEffects.emitHit(this.player.x + 12, this.player.y - 4, obstacle.obstacleType);
     const knowledgeItem = getRunKnowledgeItemForObstacle(obstacle.obstacleType);
     const feedback = this.addKnowledgeTip(
       this.getObstacleFeedback(obstacle.obstacleType, result),
@@ -537,11 +589,13 @@ export class GameScene extends Phaser.Scene {
       tone: 'danger',
       durationMs: feedback.durationMs,
     });
-    this.cameras.main.shake(
-      GAME_CONFIG.cameraShakeDurationMs,
-      GAME_CONFIG.cameraShakeIntensity,
-      false,
-    );
+    if (!prefersReducedMotion()) {
+      this.cameras.main.shake(
+        GAME_CONFIG.cameraShakeDurationMs,
+        GAME_CONFIG.cameraShakeIntensity / GAME_CONFIG.renderScale,
+        false,
+      );
+    }
     this.emitHud();
 
     if (this.marathonState.outcome.status === 'didNotFinish') {
@@ -552,8 +606,12 @@ export class GameScene extends Phaser.Scene {
   private handleItemCollected(item: RecoveryItem): void {
     if (this.runState !== 'running' || !item.active) return;
 
+    const itemX = item.x;
+    const itemY = item.y;
+    const itemType = item.itemType;
     item.body.enable = false;
     item.destroy();
+    this.runEffects.emitPickup(itemX, itemY, itemType);
 
     const result = applyMarathonRecoveryItem(
       this.marathonState.vitals,
@@ -606,8 +664,13 @@ export class GameScene extends Phaser.Scene {
     this.obstacleSpawner.stop();
     this.itemSpawner.stop();
     this.clearStageTransition();
-    if (completed) this.player.markFinished();
-    else this.player.markGameOver();
+    if (completed) {
+      this.player.markFinished();
+      this.runEffects.emitFinish(this.player.x + 12, GAME_CONFIG.groundY);
+    } else {
+      this.player.markGameOver();
+      this.runEffects.emitStopped(this.player.x, GAME_CONFIG.groundY);
+    }
     this.physics.world.pause();
     this.tutorialText.setAlpha(0);
 
@@ -691,55 +754,116 @@ export class GameScene extends Phaser.Scene {
   private showStageTransition(stageId: MarathonStageId, stageIndex: number): void {
     this.clearStageTransition();
     const copy = MARATHON_STAGE_ENTRY_COPY[stageId];
+    const theme = STAGE_TRANSITION_THEME[stageId];
     const card = this.add
       .container(GAME_CONFIG.canvasWidth / 2, GAME_CONFIG.canvasHeight / 2)
       .setDepth(24)
       .setAlpha(0)
-      .setScale(0.92);
+      .setScale(prefersReducedMotion() ? 1 : 0.96);
     this.stageTransitionCard = card;
 
-    const veil = this.add.rectangle(0, 0, GAME_CONFIG.canvasWidth, 196, 0x17324d, 0.2);
-    const panel = this.add
-      .rectangle(0, 0, 382, 154, 0x17324d, 0.95)
-      .setStrokeStyle(3, 0xffffff, 0.78);
+    const surface = this.add.graphics();
+    surface.fillStyle(0x17324d, 0.26);
+    surface.fillRect(-GAME_CONFIG.canvasWidth / 2, -116, GAME_CONFIG.canvasWidth, 232);
+    surface.fillStyle(0x071d31, 0.32);
+    surface.fillRoundedRect(-208, -86, 424, 180, 20);
+    surface.fillStyle(0x17324d, 0.97);
+    surface.fillRoundedRect(-214, -92, 424, 180, 20);
+    surface.lineStyle(2, theme.accent, 0.92);
+    surface.strokeRoundedRect(-214, -92, 424, 180, 20);
+    surface.fillStyle(theme.accent, 1);
+    surface.fillRoundedRect(-190, -92, 80, 5, 3);
+    surface.fillCircle(-167, -37, 31);
+    surface.lineStyle(2, 0xffffff, 0.32);
+    surface.strokeCircle(-167, -37, 25);
+    for (let index = 0; index < 3; index += 1) {
+      const isReached = index <= stageIndex;
+      surface.fillStyle(isReached ? theme.accent : 0x5a7188, isReached ? 1 : 0.48);
+      surface.fillCircle(132 + index * 22, 66, isReached ? 5 : 4);
+      if (index < 2) {
+        surface.fillStyle(
+          index < stageIndex ? theme.accent : 0x5a7188,
+          index < stageIndex ? 1 : 0.35,
+        );
+        surface.fillRect(137 + index * 22, 64, 12, 3);
+      }
+    }
+
+    const stageNumber = this.add
+      .text(-167, -37, `${stageIndex + 1}`.padStart(2, '0'), {
+        color: '#071d31',
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '21px',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setResolution(2);
     const counter = this.add
-      .text(0, -48, `第 ${stageIndex + 1} 關／共 3 關`, {
-        color: '#aee9dc',
+      .text(-122, -68, `${theme.phase}  ·  第 ${stageIndex + 1}／3 階段`, {
+        color: theme.accentHex,
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0, 0.5)
+      .setResolution(2);
+    const title = this.add
+      .text(-122, -28, copy.title, {
+        color: '#ffffff',
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '34px',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0, 0.5)
+      .setResolution(2);
+    const subtitle = this.add
+      .text(-122, 12, copy.subtitle, {
+        color: '#d8f5ef',
         fontFamily: 'system-ui, sans-serif',
         fontSize: '16px',
         fontStyle: 'bold',
+        wordWrap: { width: 288 },
       })
-      .setOrigin(0.5);
-    const title = this.add
-      .text(0, -4, copy.title, {
-        color: '#ffffff',
+      .setOrigin(0, 0.5)
+      .setResolution(2);
+    const rhythm = this.add
+      .text(-122, 56, theme.rhythm, {
+        color: '#a9bfd2',
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '36px',
+        fontSize: '13px',
         fontStyle: 'bold',
       })
-      .setOrigin(0.5);
-    const subtitle = this.add
-      .text(0, 41, copy.subtitle, {
-        color: '#d8f5ef',
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '17px',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
-    card.add([veil, panel, counter, title, subtitle]);
+      .setOrigin(0, 0.5)
+      .setResolution(2);
+    card.add([surface, stageNumber, counter, title, subtitle, rhythm]);
+
+    const onComplete = (): void => {
+      card.destroy();
+      if (this.stageTransitionCard === card) this.stageTransitionCard = undefined;
+    };
+
+    if (prefersReducedMotion()) {
+      this.tweens.add({
+        targets: card,
+        alpha: 1,
+        duration: 100,
+        yoyo: true,
+        hold: Math.max(0, GAME_CONFIG.stageTransitionDurationMs - 200),
+        onComplete,
+      });
+      return;
+    }
 
     this.tweens.add({
       targets: card,
       alpha: 1,
       scale: 1,
-      duration: 220,
-      ease: 'Back.easeOut',
+      y: GAME_CONFIG.canvasHeight / 2 - 6,
+      duration: 260,
+      ease: 'Cubic.easeOut',
       yoyo: true,
-      hold: Math.max(0, GAME_CONFIG.stageTransitionDurationMs - 440),
-      onComplete: () => {
-        card.destroy();
-        if (this.stageTransitionCard === card) this.stageTransitionCard = undefined;
-      },
+      hold: Math.max(0, GAME_CONFIG.stageTransitionDurationMs - 520),
+      onComplete,
     });
   }
 
@@ -807,7 +931,7 @@ export class GameScene extends Phaser.Scene {
     this.encounteredKnowledgeIds.add(knowledgeItem.id);
     this.knowledgeReview = appendRunKnowledgeItem(this.knowledgeReview, knowledgeItem);
     return {
-      text: `${baseFeedback}\n💡 ${knowledgeItem.message}`,
+      text: `${baseFeedback}\n小提醒｜${knowledgeItem.message}`,
       durationMs: GAME_CONFIG.educationFeedbackDurationMs,
     };
   }

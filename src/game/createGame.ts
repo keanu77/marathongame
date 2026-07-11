@@ -4,14 +4,17 @@ import { GAME_CONFIG } from './config/gameConfig';
 import { GameScene } from './scenes/GameScene';
 
 export function createGame(parent: string): Phaser.Game {
+  const renderWidth = GAME_CONFIG.canvasWidth * GAME_CONFIG.renderScale;
+  const renderHeight = GAME_CONFIG.canvasHeight * GAME_CONFIG.renderScale;
+
   const game = new Phaser.Game({
     // 本遊戲只有 2D 幾何圖形；Canvas 可避免部分手機與無頭瀏覽器的 WebGL framebuffer 相容問題。
     type: Phaser.CANVAS,
     parent,
     backgroundColor: '#a8e8f0',
     transparent: false,
-    width: GAME_CONFIG.canvasWidth,
-    height: GAME_CONFIG.canvasHeight,
+    width: renderWidth,
+    height: renderHeight,
     physics: {
       default: 'arcade',
       arcade: {
@@ -22,8 +25,8 @@ export function createGame(parent: string): Phaser.Game {
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: GAME_CONFIG.canvasWidth,
-      height: GAME_CONFIG.canvasHeight,
+      width: renderWidth,
+      height: renderHeight,
     },
     input: {
       activePointers: 3,

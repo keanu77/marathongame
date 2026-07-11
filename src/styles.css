@@ -76,6 +76,11 @@ a:focus-visible {
   display: none !important;
 }
 
+[data-game-view='playing'],
+[data-game-view='paused'] {
+  --footer-space: 0rem;
+}
+
 .app-shell {
   width: 100%;
   height: 100%;
@@ -245,6 +250,13 @@ a:focus-visible {
   transform: rotate(-4deg);
 }
 
+.runner-mark .ui-icon {
+  width: 68%;
+  color: #fff;
+  filter: drop-shadow(0 0.12rem 0 rgba(23, 50, 77, 0.3));
+  transform: rotate(4deg);
+}
+
 .home-lead {
   margin: 0 0 0.85rem;
   color: var(--ink-soft);
@@ -406,6 +418,48 @@ a:focus-visible {
   padding: 0.78rem 1rem;
 }
 
+.ui-icon {
+  display: inline-grid;
+  width: 1.15em;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  color: currentColor;
+  line-height: 1;
+  vertical-align: -0.12em;
+}
+
+.ui-icon__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.ui-icon--sound[data-state='on'] .ui-icon__sound-off,
+.ui-icon--sound[data-state='off'] .ui-icon__sound-wave {
+  display: none;
+}
+
+.ui-icon--sound[data-state='off'] .ui-icon__speaker {
+  opacity: 0.72;
+}
+
+.ui-icon--energy .ui-icon__svg {
+  fill: currentColor;
+  stroke-width: 1.25;
+}
+
+.ui-icon--risk circle {
+  fill: currentColor;
+  stroke: none;
+}
+
 .button:hover,
 .icon-button:hover {
   filter: brightness(1.04);
@@ -502,7 +556,8 @@ a:focus-visible {
   display: grid;
   grid-template-columns: 1fr 0.8fr 1.15fr;
   gap: 0.38rem;
-  margin-top: 0.48rem;
+  margin-top: 0.38rem;
+  opacity: 0.9;
 }
 
 .stage-hud {
@@ -721,7 +776,7 @@ a:focus-visible {
 .vitals-card {
   display: grid;
   gap: 0.48rem;
-  margin-top: 0.42rem;
+  margin-top: 0.48rem;
   padding: 0.58rem;
   border-radius: 0.85rem;
 }
@@ -734,6 +789,13 @@ a:focus-visible {
   margin-bottom: 0.23rem;
   font-size: clamp(0.69rem, 2.75vw, 0.82rem);
   font-weight: 850;
+}
+
+.vital-heading > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.18rem;
 }
 
 .vital-heading strong {
@@ -801,12 +863,19 @@ a:focus-visible {
 }
 
 .status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
   padding: 0.2rem 0.42rem;
   border: 1px solid currentColor;
   border-radius: 999px;
   font-size: clamp(0.62rem, 2.55vw, 0.73rem);
   font-weight: 850;
   line-height: 1.25;
+}
+
+.status-chip__icon {
+  width: 1.05em;
 }
 
 .status-chip--neutral {
@@ -914,6 +983,11 @@ a:focus-visible {
   line-height: 0.9;
 }
 
+.jump-button__icon .ui-icon__detail {
+  opacity: 0.55;
+  stroke-width: 1.5;
+}
+
 .jump-button:hover {
   filter: brightness(1.05);
   transform: translateY(-2px);
@@ -958,6 +1032,12 @@ a:focus-visible {
   color: #fff;
   background: var(--blue);
   font-size: 2rem;
+}
+
+.overlay-icon.ui-icon {
+  width: 4rem;
+  padding: 0.85rem;
+  vertical-align: baseline;
 }
 
 .result-card {
@@ -1005,6 +1085,15 @@ a:focus-visible {
   background: #259b78;
 }
 
+.outcome-banner__icon .ui-icon {
+  width: 1.2rem;
+}
+
+.outcome-banner__icon[data-icon='stopped'] .ui-icon--outcome-completed,
+.outcome-banner__icon[data-icon='completed'] .ui-icon--outcome-stopped {
+  display: none;
+}
+
 .outcome-banner small,
 .outcome-banner strong {
   display: block;
@@ -1022,6 +1111,8 @@ a:focus-visible {
 
 .new-record {
   display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
   margin: 0.15rem 0 0.5rem !important;
   padding: 0.25rem 0.65rem;
   border-radius: 999px;
@@ -1191,10 +1282,25 @@ a:focus-visible {
 
 .education-message::before {
   position: absolute;
-  top: 0.65rem;
-  left: 0.7rem;
-  content: '💡';
-  font-size: 1.05rem;
+  top: 0.72rem;
+  left: 0.82rem;
+  width: 0.76rem;
+  height: 0.76rem;
+  border: 0.13rem solid #2a8ea0;
+  border-radius: 50%;
+  content: '';
+  box-shadow: 0 0 0 0.16rem rgba(42, 142, 160, 0.12);
+}
+
+.education-message::after {
+  position: absolute;
+  top: 1.53rem;
+  left: 1rem;
+  width: 0.42rem;
+  height: 0.24rem;
+  border-top: 0.12rem solid #2a8ea0;
+  border-bottom: 0.12rem solid #2a8ea0;
+  content: '';
 }
 
 .education-action {
@@ -1242,6 +1348,10 @@ a:focus-visible {
   font-weight: 950;
   letter-spacing: 0.08em;
   text-align: left;
+}
+
+.education-focus-label .ui-icon {
+  width: 1rem;
 }
 
 .education-hub {
@@ -1410,8 +1520,12 @@ a:focus-visible {
 
 .education-topic-button {
   position: relative;
+  display: inline-flex;
   min-width: 0;
   min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.24rem;
   padding: 0.38rem 0.24rem;
   overflow: hidden;
   border: 1px solid #a8c9c4;
@@ -1423,6 +1537,10 @@ a:focus-visible {
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.education-topic-button__icon {
+  width: 1rem;
 }
 
 .education-topic-button[aria-pressed='true'] {
@@ -1480,6 +1598,23 @@ a:focus-visible {
   border-radius: 0.65rem;
   background: #e9f3f2;
   font-size: 1.15rem;
+}
+
+.education-reminder-card__icon .ui-icon__svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.education-reminder-card[data-topic='training'] .education-reminder-card__icon {
+  color: #247f8f;
+}
+
+.education-reminder-card[data-topic='injury'] .education-reminder-card__icon {
+  color: #b94b48;
+}
+
+.education-reminder-card[data-topic='nutrition'] .education-reminder-card__icon {
+  color: #ad7417;
 }
 
 .education-reminder-card__heading small,
@@ -1634,6 +1769,19 @@ a:focus-visible {
   line-height: 1.35;
 }
 
+.leaderboard-verification-mark {
+  display: inline-grid;
+  width: 1.25rem;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #86711f;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
 .leaderboard-scroll {
   min-height: 0;
   overflow: auto;
@@ -1764,6 +1912,17 @@ a:focus-visible {
   font-size: 2.25rem;
 }
 
+.leaderboard-empty[data-state='loading'] .leaderboard-empty__icon {
+  animation: leaderboard-icon-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes leaderboard-icon-pulse {
+  to {
+    opacity: 0.48;
+    transform: translateY(-0.16rem);
+  }
+}
+
 .leaderboard-empty strong {
   margin-top: 0.35rem;
   color: #254d62;
@@ -1814,6 +1973,15 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
+}
+
+.medical-disclaimer__notice {
+  gap: 0.26rem;
+}
+
+.medical-disclaimer__notice .ui-icon {
+  width: 1rem;
+  color: #2b687f;
 }
 
 .creator-credit {
@@ -1894,8 +2062,11 @@ a:focus-visible {
   .stage-hud {
     min-height: 2.75rem;
     margin: -2.75rem 3.05rem 0;
-    padding: 0.32rem 0.45rem 0.36rem;
+    padding: 0.3rem 0.45rem 0.34rem;
     border-radius: 0.72rem;
+    background: linear-gradient(135deg, rgba(20, 75, 111, 0.98), rgba(24, 57, 94, 0.98));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .stage-hud__heading > div {
@@ -1930,30 +2101,71 @@ a:focus-visible {
     line-height: 1;
   }
 
+  .course-progress__label > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .course-progress__label strong {
+    margin-left: auto;
+  }
+
   .course-progress__track {
     height: 0.34rem;
   }
 
   .hud-summary {
-    gap: 0.25rem;
-    margin-top: 0.32rem;
+    grid-template-columns: repeat(3, auto);
+    width: fit-content;
+    max-width: 100%;
+    gap: 0;
+    margin: 0.24rem auto 0;
+    padding: 0.13rem 0.16rem;
+    border: 1px solid rgba(255, 255, 255, 0.54);
+    border-radius: 999px;
+    color: #e9f6f8;
+    background: rgba(10, 31, 54, 0.94);
+    box-shadow: 0 0.22rem 0.55rem rgba(16, 33, 63, 0.14);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .metric-card {
-    padding: 0.3rem 0.35rem;
-    border-radius: 0.58rem;
+    display: flex;
+    min-height: 1.05rem;
+    align-items: baseline;
+    gap: 0.18rem;
+    padding: 0.05rem 0.34rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .metric-card + .metric-card {
+    border-left: 1px solid rgba(255, 255, 255, 0.28);
   }
 
   .metric-label {
     margin-bottom: 0;
-    font-size: 0.68rem;
-    line-height: 1.05;
+    color: #b9dce1;
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .metric-card strong {
-    margin-top: 0.1rem;
-    font-size: clamp(0.75rem, 3.05vw, 0.84rem);
-    line-height: 1.05;
+    margin-top: 0;
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .metric-card small {
@@ -1962,10 +2174,13 @@ a:focus-visible {
 
   .vitals-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.38rem;
-    margin-top: 0.32rem;
-    padding: 0.36rem 0.4rem;
+    gap: 0.42rem;
+    margin-top: 0.28rem;
+    padding: 0.33rem 0.4rem 0.36rem;
     border-radius: 0.65rem;
+    background: rgba(15, 38, 66, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .vital {
@@ -1974,8 +2189,8 @@ a:focus-visible {
 
   .vital-heading {
     gap: 0.2rem;
-    margin-bottom: 0.16rem;
-    font-size: clamp(0.7rem, 2.55vw, 0.74rem);
+    margin-bottom: 0.14rem;
+    font-size: 0.75rem;
     line-height: 1.1;
   }
 
@@ -1991,14 +2206,17 @@ a:focus-visible {
   }
 
   .bar-track {
-    height: 0.43rem;
+    height: 0.4rem;
   }
 
   .status-region {
-    min-height: 2rem;
-    margin-top: 0.3rem;
-    padding: 0.3rem 0.38rem;
+    min-height: 1.75rem;
+    margin-top: 0.24rem;
+    padding: 0.24rem 0.34rem;
     border-radius: 0.62rem;
+    background: rgba(15, 38, 66, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .status-region[data-active='false'] {
@@ -2033,7 +2251,7 @@ a:focus-visible {
 
   .status-chip {
     padding: 0.16rem 0.34rem;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .game-feedback {
@@ -2045,6 +2263,19 @@ a:focus-visible {
 }
 
 @media (max-width: 22rem) and (orientation: portrait) {
+  .hud-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .metric-card {
+    display: grid;
+    justify-items: center;
+    gap: 0.12rem;
+    padding: 0.16rem 0.2rem;
+    text-align: center;
+  }
+
   .vital-heading {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -2053,7 +2284,7 @@ a:focus-visible {
 
   .vital-heading strong {
     justify-self: start;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
   }
 }
 
@@ -2089,8 +2320,8 @@ a:focus-visible {
   }
 
   .stage-hud {
-    padding-top: 0.42rem;
-    padding-bottom: 0.44rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.34rem;
   }
 
   .home-hint {

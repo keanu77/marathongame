@@ -17,6 +17,123 @@ import {
 } from './types';
 import { buildShareText, createShareCardFile, type ShareCardInput } from './shareCard';
 
+const UI_ICONS = {
+  energy: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M13.4 2.8 5.8 13h5.7l-.9 8.2L18.2 11h-5.7l.9-8.2Z" />
+    </svg>
+  `,
+  jump: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M12 19V5m-5 5 5-5 5 5" />
+      <path class="ui-icon__detail" d="M6 21h12" />
+    </svg>
+  `,
+  leaderboard: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M8 4h8v3.5a4 4 0 0 1-8 0V4Z" />
+      <path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11m8-5h3.5v1.5A3.5 3.5 0 0 1 16 11M12 12v4m-3 4h6m-5-4h4" />
+    </svg>
+  `,
+  pause: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M8 6v12M16 6v12" />
+    </svg>
+  `,
+  risk: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M12 3 2.8 20h18.4L12 3Z" />
+      <path d="M12 9v5" />
+      <circle cx="12" cy="17" r=".65" />
+    </svg>
+  `,
+  sound: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path class="ui-icon__speaker" d="M4 9h4l5-4v14l-5-4H4V9Z" />
+      <path class="ui-icon__sound-wave" d="M16 9a4 4 0 0 1 0 6m2-9a8 8 0 0 1 0 12" />
+      <path class="ui-icon__sound-off" d="m16.5 9.5 5 5m0-5-5 5" />
+    </svg>
+  `,
+  runner: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <circle cx="14.5" cy="4.2" r="2.2" />
+      <path d="m12.7 7.2-3.4 4.2 3.2 2.2-2.7 6.1M13 8l3 3.3 3.1.8M12.5 13.6l3.8 2.2 2.2 4" />
+      <path d="M10.1 8.1 7 8.7 5.2 11" />
+    </svg>
+  `,
+  target: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <circle cx="11" cy="13" r="7" /><circle cx="11" cy="13" r="3" />
+      <path d="m13.2 10.8 6.3-6.3m-3.2.2h3v3" />
+    </svg>
+  `,
+  info: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <circle cx="12" cy="12" r="9" /><path d="M12 10v6" /><path d="M12 7.2h.01" />
+    </svg>
+  `,
+  recovery: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M9 4v10.1a4 4 0 1 0 6 0V4a3 3 0 0 0-6 0Z" />
+      <path d="M12 7v8m-3 0h6" />
+    </svg>
+  `,
+  shield: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M12 3 5 6v5.2c0 4.5 2.8 7.6 7 9.8 4.2-2.2 7-5.3 7-9.8V6l-7-3Z" />
+      <path d="m9 12 2 2 4-5" />
+    </svg>
+  `,
+  zone2: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M20 8.8c0 5-8 10.2-8 10.2S4 13.8 4 8.8A4.1 4.1 0 0 1 11.2 6L12 7l.8-1A4.1 4.1 0 0 1 20 8.8Z" />
+      <path d="M8 11h2l1-2 2 5 1-3h2" />
+    </svg>
+  `,
+  route: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <circle cx="6" cy="18" r="2" /><circle cx="18" cy="6" r="2" />
+      <path d="M7.5 16.7c4.5-2 7.5.2 9-2.4 1.1-1.9-1.7-2.7-3.7-3.6S10 8 11.5 6.5c1.2-1.2 2.7-.6 4.5-.5" />
+    </svg>
+  `,
+  interval: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <circle cx="12" cy="13" r="7" /><path d="M12 13V8m-3-5h6m-3 0v3" />
+      <path d="m15.5 9.5-3.5 3.5 3 2" />
+    </svg>
+  `,
+  training: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M4 18V9m5 9V5m5 13v-7m5 7V3" />
+      <path d="m3 12 5-4 5 3 7-6" />
+    </svg>
+  `,
+  injury: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z" />
+      <path d="M9.5 8v2.5H7v3h2.5V16h3v-2.5H15v-3h-2.5V8h-3Z" />
+    </svg>
+  `,
+  nutrition: `
+    <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+      <path d="M7 9h10l-1 11H8L7 9Z" /><path d="M9 9V6h6v3M9.5 14h5" />
+    </svg>
+  `,
+} as const;
+
+function getStatusIconMarkup(statusId: string): string | null {
+  if (statusId === 'recovery-deficit') return UI_ICONS.recovery;
+  if (statusId === 'strength-protection') return UI_ICONS.shield;
+  if (statusId === 'pace-zone2') return UI_ICONS.zone2;
+  if (statusId === 'pace-lsd') return UI_ICONS.route;
+  if (statusId === 'pace-interval') return UI_ICONS.interval;
+  return null;
+}
+
+function getEducationIconMarkup(topic: EducationTopic): string {
+  return UI_ICONS[topic];
+}
+
 const UI_MARKUP = `
   <div class="app-shell">
     <main class="game-main" aria-label="馬拉松完賽訓練">
@@ -37,7 +154,9 @@ const UI_MARKUP = `
         <section class="home-screen screen-panel" data-testid="home-screen">
           <div class="home-card">
             <p class="eyebrow">三階段 × 健康備賽</p>
-            <div class="runner-mark" aria-hidden="true">🏃</div>
+            <div class="runner-mark" aria-hidden="true">
+              <span class="ui-icon ui-icon--runner">${UI_ICONS.runner}</span>
+            </div>
             <h1>馬拉松完賽訓練</h1>
             <p class="home-lead">循序累積、聰明恢復、一路跑完正式比賽</p>
 
@@ -83,7 +202,7 @@ const UI_MARKUP = `
                 data-testid="leaderboard-home-button"
                 type="button"
               >
-                <span aria-hidden="true">🏆</span>
+                <span class="ui-icon ui-icon--leaderboard" aria-hidden="true">${UI_ICONS.leaderboard}</span>
                 跨裝置排行榜
               </button>
             </div>
@@ -99,7 +218,7 @@ const UI_MARKUP = `
               type="button"
               aria-label="暫停遊戲"
             >
-              <span aria-hidden="true">⏸</span>
+              <span class="ui-icon ui-icon--pause" aria-hidden="true">${UI_ICONS.pause}</span>
               <span>暫停</span>
             </button>
             <button
@@ -109,7 +228,7 @@ const UI_MARKUP = `
               aria-label="關閉聲音"
               aria-pressed="true"
             >
-              <span data-sound-icon aria-hidden="true">🔊</span>
+              <span class="ui-icon ui-icon--sound" data-sound-icon data-state="on" aria-hidden="true">${UI_ICONS.sound}</span>
               <span data-sound-label>聲音：開</span>
             </button>
           </div>
@@ -157,26 +276,10 @@ const UI_MARKUP = `
             </div>
           </section>
 
-          <div class="hud-summary">
-            <div class="metric-card">
-              <span class="metric-label">旅程里程</span>
-              <strong data-distance>0 公尺</strong>
-            </div>
-            <div class="metric-card metric-card--score">
-              <span class="metric-label">分數</span>
-              <strong data-score>0</strong>
-            </div>
-            <div class="metric-card metric-card--speed">
-              <span class="metric-label">速度／難度</span>
-              <strong data-speed>300 · Lv.1</strong>
-              <small data-difficulty-label>起步</small>
-            </div>
-          </div>
-
           <div class="vitals-card">
             <div class="vital" data-energy-meter role="meter" aria-label="體力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
               <div class="vital-heading">
-                <span><span aria-hidden="true">⚡</span> 體力</span>
+                <span><span class="ui-icon ui-icon--energy" aria-hidden="true">${UI_ICONS.energy}</span> 體力</span>
                 <strong data-energy-value>100 / 100</strong>
               </div>
               <div class="bar-track" aria-hidden="true">
@@ -186,7 +289,7 @@ const UI_MARKUP = `
 
             <div class="vital" data-risk-meter role="meter" aria-label="受傷風險" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
               <div class="vital-heading">
-                <span><span aria-hidden="true">⚠️</span> 受傷風險</span>
+                <span><span class="ui-icon ui-icon--risk" aria-hidden="true">${UI_ICONS.risk}</span> 受傷風險</span>
                 <strong data-risk-value>0 / 100</strong>
               </div>
               <div class="bar-track" aria-hidden="true">
@@ -200,6 +303,22 @@ const UI_MARKUP = `
             <ul class="status-list" data-status-list>
               <li class="status-chip status-chip--neutral">狀態良好</li>
             </ul>
+          </div>
+
+          <div class="hud-summary" data-priority="secondary" aria-label="本局次要資訊">
+            <div class="metric-card">
+              <span class="metric-label">里程</span>
+              <strong data-distance>0 公尺</strong>
+            </div>
+            <div class="metric-card metric-card--score">
+              <span class="metric-label">分數</span>
+              <strong data-score>0</strong>
+            </div>
+            <div class="metric-card metric-card--speed">
+              <span class="metric-label">速度／難度</span>
+              <strong data-speed>300 · Lv.1</strong>
+              <small data-difficulty-label>起步</small>
+            </div>
           </div>
 
           <div
@@ -218,7 +337,7 @@ const UI_MARKUP = `
             type="button"
             aria-label="跳躍"
           >
-            <span class="jump-button__icon" aria-hidden="true">↑</span>
+            <span class="jump-button__icon ui-icon ui-icon--jump" aria-hidden="true">${UI_ICONS.jump}</span>
             <span>跳躍</span>
           </button>
         </section>
@@ -232,7 +351,7 @@ const UI_MARKUP = `
           hidden
         >
           <div class="overlay-card overlay-card--compact">
-            <span class="overlay-icon" aria-hidden="true">⏸</span>
+            <span class="overlay-icon ui-icon ui-icon--pause" aria-hidden="true">${UI_ICONS.pause}</span>
             <h2 id="pause-title">已暫停</h2>
             <p>喘口氣，準備好再繼續。</p>
             <button class="button button--primary button--large" data-testid="resume-button" type="button">
@@ -256,13 +375,23 @@ const UI_MARKUP = `
             <p class="eyebrow" data-result-eyebrow>本次備賽紀錄</p>
             <h2 id="game-over-title" data-result-title>本次備賽中止</h2>
             <div class="outcome-banner" data-outcome-banner>
-              <span class="outcome-banner__icon" data-outcome-icon aria-hidden="true">⏸</span>
+              <span class="outcome-banner__icon" data-outcome-icon data-icon="stopped" aria-hidden="true">
+                <span class="ui-icon ui-icon--outcome-stopped">${UI_ICONS.pause}</span>
+                <span class="ui-icon ui-icon--outcome-completed">
+                  <svg class="ui-icon__svg" viewBox="0 0 24 24" focusable="false">
+                    <path d="M6 21V3m0 2h11l-2.1 3L17 11H6" />
+                  </svg>
+                </span>
+              </span>
               <span>
                 <small data-outcome-label>本次抵達</small>
                 <strong data-result-stage>第 1 關・基礎期</strong>
               </span>
             </div>
-            <p class="new-record" data-new-record hidden>🏆 新紀錄！</p>
+            <p class="new-record" data-new-record hidden>
+              <span class="ui-icon ui-icon--leaderboard" aria-hidden="true">${UI_ICONS.leaderboard}</span>
+              新紀錄！
+            </p>
 
             <dl class="result-grid">
               <div>
@@ -284,7 +413,10 @@ const UI_MARKUP = `
               <strong id="game-over-reason" data-failure-reason>體力耗盡</strong>
             </div>
 
-            <p class="education-focus-label"><span aria-hidden="true">🎯</span> 本局重點提醒</p>
+            <p class="education-focus-label">
+              <span class="ui-icon ui-icon--target" aria-hidden="true">${UI_ICONS.target}</span>
+              本局重點提醒
+            </p>
             <blockquote
               id="game-over-education"
               class="education-message"
@@ -411,7 +543,7 @@ const UI_MARKUP = `
                 data-testid="leaderboard-result-button"
                 type="button"
               >
-                <span aria-hidden="true">🏆</span>
+                <span class="ui-icon ui-icon--leaderboard" aria-hidden="true">${UI_ICONS.leaderboard}</span>
                 查看排行榜
               </button>
               <button class="button button--ghost" data-home-button type="button">
@@ -449,7 +581,7 @@ const UI_MARKUP = `
             </div>
 
             <p id="leaderboard-device-note" class="leaderboard-device-note">
-              <span aria-hidden="true">☁️</span>
+              <span class="leaderboard-verification-mark" aria-hidden="true">✓</span>
               只顯示通過伺服器規則檢查的成績；暱稱請勿填入真實姓名或敏感資訊。
             </p>
 
@@ -469,7 +601,7 @@ const UI_MARKUP = `
             </div>
 
             <div class="leaderboard-empty" data-leaderboard-empty data-state="empty">
-              <span data-leaderboard-empty-icon aria-hidden="true">🏃</span>
+              <span class="leaderboard-empty__icon ui-icon ui-icon--leaderboard" data-leaderboard-empty-icon aria-hidden="true">${UI_ICONS.leaderboard}</span>
               <strong data-leaderboard-empty-title>還沒有網路成績</strong>
               <p data-leaderboard-empty-message>完成一局並輸入暱稱，就能成為第一位上榜跑者。</p>
             </div>
@@ -480,7 +612,7 @@ const UI_MARKUP = `
 
     <footer class="medical-disclaimer">
       <span class="medical-disclaimer__notice">
-        <span aria-hidden="true">ℹ️</span>
+        <span class="ui-icon ui-icon--info" aria-hidden="true">${UI_ICONS.info}</span>
         本遊戲僅供娛樂與衛教，不取代醫療診斷、個別評估或正式備賽計畫。
       </span>
       <span class="creator-credit">
@@ -642,7 +774,7 @@ export class GameUI {
     const label = this.element<HTMLElement>('[data-sound-label]');
     button.setAttribute('aria-pressed', String(enabled));
     button.setAttribute('aria-label', enabled ? '關閉聲音' : '開啟聲音');
-    icon.textContent = enabled ? '🔊' : '🔇';
+    icon.dataset.state = enabled ? 'on' : 'off';
     label.textContent = enabled ? '聲音：開' : '聲音：關';
 
     if (notify) {
@@ -703,7 +835,7 @@ export class GameUI {
     this.element<HTMLElement>('[data-result-reason-box]').dataset.outcome = outcome;
     this.text('[data-result-eyebrow]', outcome === 'completed' ? '三階段挑戰完成' : '本次備賽紀錄');
     this.text('[data-result-title]', outcome === 'completed' ? '恭喜順利完賽！' : '本次備賽中止');
-    this.text('[data-outcome-icon]', outcome === 'completed' ? '🏁' : '⏸');
+    this.element<HTMLElement>('[data-outcome-icon]').dataset.icon = outcome;
     this.text('[data-outcome-label]', outcome === 'completed' ? '完成路線' : '本次抵達');
     this.text('[data-result-stage]', `第 ${stageNumber} 關・${stageName}`);
     this.text('[data-reason-label]', outcome === 'completed' ? '完賽成果' : '中途停止原因');
@@ -796,7 +928,6 @@ export class GameUI {
     table.hidden = visibleRows.length === 0;
     empty.hidden = visibleRows.length > 0;
     empty.dataset.state = 'empty';
-    this.text('[data-leaderboard-empty-icon]', '🏃');
     this.text('[data-leaderboard-empty-title]', '還沒有網路成績');
     this.text('[data-leaderboard-empty-message]', '完成一局並輸入暱稱，就能成為第一位上榜跑者。');
     this.openLeaderboard(false);
@@ -811,7 +942,6 @@ export class GameUI {
     table.hidden = true;
     empty.hidden = false;
     empty.dataset.state = 'loading';
-    this.text('[data-leaderboard-empty-icon]', '☁️');
     this.text('[data-leaderboard-empty-title]', '正在同步排行榜');
     this.text('[data-leaderboard-empty-message]', '正在讀取各裝置通過驗證的最新成績…');
   }
@@ -825,7 +955,6 @@ export class GameUI {
     table.hidden = true;
     empty.hidden = false;
     empty.dataset.state = 'error';
-    this.text('[data-leaderboard-empty-icon]', '📡');
     this.text('[data-leaderboard-empty-title]', '暫時無法同步');
     this.text(
       '[data-leaderboard-empty-message]',
@@ -895,6 +1024,7 @@ export class GameUI {
   destroy(): void {
     this.eventController.abort();
     this.clearFeedback();
+    delete this.root.dataset.gameView;
     this.root.replaceChildren();
   }
 
@@ -1091,10 +1221,12 @@ export class GameUI {
   private setView(view: GameUIView): void {
     this.view = view;
     this.frame.dataset.view = view;
+    this.root.dataset.gameView = view;
     this.homeScreen.hidden = view !== 'home';
     this.hudLayer.hidden = view === 'home';
     this.pauseOverlay.hidden = view !== 'paused';
     this.gameOverScreen.hidden = view !== 'game-over';
+    this.medicalDisclaimer.hidden = view === 'playing' || view === 'paused';
 
     this.syncInertState();
     this.hudLayer.setAttribute('aria-hidden', String(view !== 'playing'));
@@ -1281,11 +1413,23 @@ export class GameUI {
       item.className = `status-chip status-chip--${status.tone ?? 'neutral'}`;
       item.dataset.statusId = status.id;
 
-      const label = [status.icon, status.label].filter(Boolean).join(' ');
-      item.textContent =
+      const iconMarkup = getStatusIconMarkup(status.id);
+      if (iconMarkup) {
+        const icon = document.createElement('span');
+        icon.className = 'ui-icon status-chip__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = iconMarkup;
+        item.append(icon);
+      }
+
+      const label = iconMarkup
+        ? status.label
+        : [status.icon, status.label].filter(Boolean).join(' ');
+      const visibleText =
         typeof status.remainingSeconds === 'number'
           ? `${label} ${Math.max(0, Math.ceil(status.remainingSeconds))} 秒`
           : label;
+      item.append(document.createTextNode(visibleText));
       list.append(item);
     });
   }
@@ -1357,7 +1501,11 @@ export class GameUI {
         'aria-label',
         `${reminder.topicLabel}${isPreferred ? '，本局建議先看' : ''}`,
       );
-      button.textContent = `${reminder.icon} ${reminder.topicLabel}`;
+      const icon = document.createElement('span');
+      icon.className = 'ui-icon education-topic-button__icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = getEducationIconMarkup(reminder.topic);
+      button.append(icon, document.createTextNode(reminder.topicLabel));
       switcher.append(button);
     });
 
@@ -1422,7 +1570,9 @@ export class GameUI {
     this.activeEducationTopic = reminder.topic;
     const card = this.element<HTMLElement>('[data-education-reminder-card]');
     card.dataset.topic = reminder.topic;
-    this.text('[data-reminder-icon]', reminder.icon);
+    this.element<HTMLElement>('[data-reminder-icon]').innerHTML = getEducationIconMarkup(
+      reminder.topic,
+    );
     this.text('[data-reminder-topic]', reminder.topicLabel);
     this.text('[data-reminder-title]', reminder.title);
     this.text('[data-reminder-message]', reminder.message);

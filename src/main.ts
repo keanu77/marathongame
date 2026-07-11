@@ -256,7 +256,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
           ? { text: '受傷：風險上升', tone: 'danger', durationMs: 1_400 }
           : kind === 'education'
             ? {
-                text: '營養補給：體力恢復\n💡 補給需求會受運動時間、環境與個人狀況影響。',
+                text: '營養補給：體力恢復\n小提醒｜補給需求會受運動時間、環境與個人狀況影響。',
                 tone: 'positive',
                 durationMs: GAME_CONFIG.educationFeedbackDurationMs,
               }

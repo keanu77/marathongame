@@ -182,6 +182,41 @@ test('遊戲畫布存在', async ({ page }) => {
   await startGame(page);
 
   await expect(gameCanvas(page)).toHaveCount(1);
+  const backingBuffer = await gameCanvas(page).evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      horizontalRatio: canvas.width / rect.width,
+      verticalRatio: canvas.height / rect.height,
+      targetRatio: Math.min(2, window.devicePixelRatio),
+    };
+  });
+  expect(backingBuffer.horizontalRatio).toBeGreaterThanOrEqual(backingBuffer.targetRatio - 0.01);
+  expect(backingBuffer.verticalRatio).toBeGreaterThanOrEqual(backingBuffer.targetRatio - 0.01);
+});
+
+test('三關 Canvas 天空使用不同且非黑色的相容色彩', async ({ page }) => {
+  await startGame(page);
+  await page.getByTestId('pause-button').click();
+
+  const samples: number[][] = [];
+  for (const stageId of ['base', 'build', 'race'] as const) {
+    await page.evaluate((stage) => window.__GAME_TEST__?.setStage(stage), stageId);
+    await page.waitForTimeout(80);
+    const sample = await gameCanvas(page).evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      return context ? [...context.getImageData(canvas.width / 2, 40, 1, 1).data] : [];
+    });
+    samples.push(sample);
+  }
+
+  samples.forEach((sample) => {
+    expect(sample).toHaveLength(4);
+    expect((sample[0] ?? 0) + (sample[1] ?? 0) + (sample[2] ?? 0)).toBeGreaterThan(120);
+    expect(sample[3]).toBe(255);
+  });
+  expect(new Set(samples.map((sample) => sample.slice(0, 3).join(','))).size).toBe(3);
 });
 
 test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', async ({ page }, testInfo) => {
@@ -197,6 +232,11 @@ test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', asy
     const pauseButton = document
       .querySelector('[data-testid="pause-button"]')
       ?.getBoundingClientRect();
+    const hudFontSizes = [
+      ...document.querySelectorAll<HTMLElement>(
+        '.metric-label, .metric-card strong, .vital-heading, .status-chip',
+      ),
+    ].map((element) => Number.parseFloat(getComputedStyle(element).fontSize));
     if (!frame || boxes.some((box) => !box) || !pauseButton) return null;
 
     return {
@@ -206,6 +246,7 @@ test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', asy
       pauseHeight: pauseButton.height,
       neutralStatusActive:
         document.querySelector('[data-status-region]')?.getAttribute('data-active') ?? '',
+      minimumHudFontSize: Math.min(...hudFontSizes),
     };
   });
 
@@ -216,6 +257,7 @@ test('手機 HUD 保留跑道空間，受傷與補給提示不再被遮住', asy
   expect(compactLayout?.pauseWidth ?? 0).toBeGreaterThanOrEqual(44);
   expect(compactLayout?.pauseHeight ?? 0).toBeGreaterThanOrEqual(44);
   expect(compactLayout?.neutralStatusActive).toBe('false');
+  expect(compactLayout?.minimumHudFontSize ?? 0).toBeGreaterThanOrEqual(12);
 
   const feedback = page.getByTestId('game-feedback');
 
