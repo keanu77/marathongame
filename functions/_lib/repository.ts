@@ -13,6 +13,8 @@ export interface RunRow {
   checkpoint_elapsed_seconds: number | null;
   checkpoint_items: number | null;
   checkpoint_at_ms: number | null;
+  submitted_at_ms: number | null;
+  finish_fingerprint: string | null;
 }
 
 export interface EntryRow {
@@ -99,11 +101,22 @@ export function getRun(db: D1DatabaseLike, id: string): Promise<RunRow | null> {
   return db
     .prepare(
       `SELECT id, token_hash, rules_version, issued_at_ms, expires_at_ms, status,
-              checkpoint_elapsed_seconds, checkpoint_items, checkpoint_at_ms
+              checkpoint_elapsed_seconds, checkpoint_items, checkpoint_at_ms,
+              submitted_at_ms, finish_fingerprint
        FROM leaderboard_runs WHERE id = ?`,
     )
     .bind(id)
     .first<RunRow>();
+}
+
+export function getEntry(db: D1DatabaseLike, id: string): Promise<EntryRow | null> {
+  return db
+    .prepare(
+      `SELECT run_id AS id, name, score, distance_meters, outcome, stage_id, created_at_ms
+       FROM leaderboard_entries WHERE run_id = ?`,
+    )
+    .bind(id)
+    .first<EntryRow>();
 }
 
 export async function updateCheckpoint(

@@ -5,11 +5,10 @@ import { getRun, type RunRow } from './repository';
 import { assertRunTokenFormat, sha256Hex, timingSafeEqualHex } from './security';
 import type { D1DatabaseLike } from './types';
 
-export async function requireIssuedRun(
+export async function requireRun(
   db: D1DatabaseLike,
   id: string,
   tokenValue: unknown,
-  nowMs: number,
 ): Promise<RunRow> {
   assertRunTokenFormat(tokenValue);
   const run = await getRun(db, id);
@@ -24,6 +23,16 @@ export async function requireIssuedRun(
   if (run.rules_version !== NETWORK_LEADERBOARD_RULES_VERSION) {
     throw new ApiError(409, 'RULES_VERSION_MISMATCH', '本次跑局使用的規則版本已不支援。');
   }
+  return run;
+}
+
+export async function requireIssuedRun(
+  db: D1DatabaseLike,
+  id: string,
+  tokenValue: unknown,
+  nowMs: number,
+): Promise<RunRow> {
+  const run = await requireRun(db, id, tokenValue);
   if (run.status !== 'issued') {
     throw new ApiError(409, 'RUN_ALREADY_SUBMITTED', '本次跑局已提交過成績。');
   }

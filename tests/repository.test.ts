@@ -1,4 +1,10 @@
-import { getEntryRank, listLeaderboard, type EntryRow } from '../functions/_lib/repository';
+import {
+  getEntry,
+  getEntryRank,
+  getRun,
+  listLeaderboard,
+  type EntryRow,
+} from '../functions/_lib/repository';
 import type { D1DatabaseLike, D1PreparedStatement, D1Result } from '../functions/_lib/types';
 
 class CapturingStatement implements D1PreparedStatement {
@@ -97,5 +103,39 @@ describe('D1 leaderboard ranking queries', () => {
     expect(createdOrder).toBeGreaterThan(distanceOrder);
     expect(idOrder).toBeGreaterThan(createdOrder);
     expect(statement?.bindings).toEqual([[10]]);
+  });
+});
+
+describe('D1 idempotent finish reads', () => {
+  it('loads the stored fingerprint and submission time with a run', async () => {
+    const db = new CapturingDatabase(null);
+
+    await getRun(db, 'run-1');
+
+    const statement = db.statements[0];
+    const query = normalizedSql(statement?.query ?? '');
+    expect(query).toContain('submitted_at_ms, finish_fingerprint');
+    expect(statement?.bindings).toEqual([['run-1']]);
+  });
+
+  it('loads one existing entry by run id for replay responses', async () => {
+    const row: EntryRow = {
+      id: 'run-1',
+      name: '跑者',
+      score: 1_000,
+      distance_meters: 25_000,
+      outcome: 'stopped',
+      stage_id: 'build',
+      created_at_ms: 123,
+    };
+    const db = new CapturingDatabase(row);
+
+    await expect(getEntry(db, 'run-1')).resolves.toEqual(row);
+
+    const statement = db.statements[0];
+    expect(normalizedSql(statement?.query ?? '')).toContain(
+      'FROM leaderboard_entries WHERE run_id = ?',
+    );
+    expect(statement?.bindings).toEqual([['run-1']]);
   });
 });

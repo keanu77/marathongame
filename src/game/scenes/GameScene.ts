@@ -366,6 +366,17 @@ export class GameScene extends Phaser.Scene {
     if (this.runState === 'paused') this.togglePause(false);
 
     const elapsedSeconds = getMarathonTotalDurationSeconds();
+    // The development-only completion control should exercise the same
+    // checkpoint contract as a real 80-second run instead of bypassing it.
+    const checkpointElapsedSeconds = elapsedSeconds - 10;
+    this.marathonState = {
+      ...this.marathonState,
+      elapsedSeconds: checkpointElapsedSeconds,
+      stage: getMarathonStageSnapshot(checkpointElapsedSeconds),
+      outcome: { status: 'inProgress', reason: null },
+    };
+    this.emitHud();
+
     this.marathonState = {
       ...this.marathonState,
       elapsedSeconds,

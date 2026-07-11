@@ -466,6 +466,37 @@ test('結算成績經伺服器驗證後可跨重新載入保留', async ({ page 
   await expect(page.locator('[data-leaderboard-body]')).toContainText('慢跑小明');
 });
 
+test('完賽檢查點暫時失敗後，送出成績會自動補送並儲存', async ({ page }) => {
+  let checkpointAttempts = 0;
+  await page.route('**/api/runs/*/checkpoint', async (route) => {
+    checkpointAttempts += 1;
+    if (checkpointAttempts === 1) {
+      await fulfillJson(
+        route,
+        { error: { code: 'TEMPORARY_FAILURE', message: '暫時無法儲存。' } },
+        503,
+      );
+      return;
+    }
+    await fulfillJson(route, { accepted: true });
+  });
+
+  await startGame(page);
+  await page.evaluate(() => window.__GAME_TEST__?.completeGame());
+  await page.locator('[data-score-name]').fill('補送跑者');
+  await page.locator('[data-score-submit]').click();
+
+  await expect(page.locator('[data-score-save-status]')).toContainText('通過伺服器驗證');
+  expect(checkpointAttempts).toBe(2);
+
+  // Chromium reports our deliberately injected 503 as a console resource
+  // error. Assert it is the only error, then clear this expected test signal.
+  const expectedErrors = browserErrors.get(page) ?? [];
+  expect(expectedErrors).toHaveLength(1);
+  expect(expectedErrors[0]).toContain('503');
+  browserErrors.set(page, []);
+});
+
 test('分享成績在支援時附上 PNG 成績卡', async ({ page }) => {
   await startGame(page);
   await page.evaluate(() => window.__GAME_TEST__?.completeGame());

@@ -171,6 +171,27 @@ export function getTotalMarathonDurationSeconds(): number {
   return MARATHON_CONFIG.stages.reduce((total, stage) => total + stage.durationSeconds, 0);
 }
 
+/**
+ * Shared timing contract for the checkpoint used to validate a completed run.
+ * Keeping this predicate shared prevents the browser's retry window from
+ * drifting away from the server-side validation rules.
+ */
+export function isCompletionCheckpointTimingValid(
+  checkpointElapsedSeconds: number,
+  finishElapsedSeconds: number,
+): boolean {
+  if (!Number.isFinite(checkpointElapsedSeconds) || !Number.isFinite(finishElapsedSeconds)) {
+    return false;
+  }
+
+  const gapSeconds = finishElapsedSeconds - checkpointElapsedSeconds;
+  return (
+    checkpointElapsedSeconds >= COMPLETION_CHECKPOINT_MIN_SECONDS &&
+    gapSeconds >= COMPLETION_CHECKPOINT_MIN_GAP_SECONDS &&
+    gapSeconds <= COMPLETION_CHECKPOINT_MAX_GAP_SECONDS
+  );
+}
+
 export function getValidatedStageId(elapsedSeconds: number): MarathonStageId {
   const safeElapsed = Math.max(0, elapsedSeconds);
   let stageStart = 0;
@@ -318,9 +339,7 @@ export function validateFinish(input: FinishValidationInput): NetworkRuleResult<
       return fail('CHECKPOINT_REQUIRED', '完賽成績需要有效檢查點。');
     }
     if (
-      checkpoint.elapsedSeconds < COMPLETION_CHECKPOINT_MIN_SECONDS ||
-      elapsedSeconds - checkpoint.elapsedSeconds < COMPLETION_CHECKPOINT_MIN_GAP_SECONDS ||
-      elapsedSeconds - checkpoint.elapsedSeconds > COMPLETION_CHECKPOINT_MAX_GAP_SECONDS ||
+      !isCompletionCheckpointTimingValid(checkpoint.elapsedSeconds, elapsedSeconds) ||
       checkpoint.collectedRecoveryItems > collectedRecoveryItems
     ) {
       return fail('CHECKPOINT_INSUFFICIENT', '最後檢查點不足以驗證本次完賽。');

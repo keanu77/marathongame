@@ -25,6 +25,7 @@ import {
 import {
   COMPLETION_CHECKPOINT_MIN_GAP_SECONDS,
   getTotalMarathonDurationSeconds,
+  isCompletionCheckpointTimingValid,
 } from './shared/networkLeaderboardRules';
 import { GameUI, type HUDStatus } from './ui/GameUI';
 import type { LeaderboardRow, MarathonStageNumber, PaceTone } from './ui/types';
@@ -48,6 +49,12 @@ const leaderboardApi = new LeaderboardApiClient();
 const CHECKPOINT_INTERVAL_SECONDS = 10;
 const PERIODIC_CHECKPOINT_CUTOFF_SECONDS =
   getTotalMarathonDurationSeconds() - COMPLETION_CHECKPOINT_MIN_GAP_SECONDS;
+
+interface ClientCheckpointSnapshot {
+  elapsedSeconds: number;
+  collectedRecoveryItems: number;
+}
+
 let sceneReady = false;
 let latestResult: GameOverResult | null = null;
 let currentLeaderboardEntryId: string | undefined;
@@ -56,6 +63,7 @@ let runSessionPromise: Promise<RunSession | null> | null = null;
 let networkRunGeneration = 0;
 let nextCheckpointSeconds = CHECKPOINT_INTERVAL_SECONDS;
 let lastCheckpointElapsedSeconds = 0;
+let latestCompletionCheckpointCandidate: ClientCheckpointSnapshot | null = null;
 let checkpointQueue: Promise<void> = Promise.resolve();
 let networkRunError: string | null = null;
 let leaderboardRequestGeneration = 0;
@@ -166,6 +174,7 @@ gameEventBus.on(GAME_EVENTS.hudUpdated, (snapshot: HudSnapshot) => {
     paceTone: pace.tone,
     statuses: createHudStatuses(snapshot),
   });
+  captureCompletionCheckpointCandidate(snapshot);
   queueNetworkCheckpoint(snapshot);
 });
 
@@ -463,6 +472,7 @@ function prepareNetworkRun(): void {
   networkRunError = null;
   nextCheckpointSeconds = CHECKPOINT_INTERVAL_SECONDS;
   lastCheckpointElapsedSeconds = 0;
+  latestCompletionCheckpointCandidate = null;
   checkpointQueue = Promise.resolve();
 
   runSessionPromise = leaderboardApi
@@ -484,7 +494,22 @@ function abandonNetworkRun(): void {
   networkRunGeneration += 1;
   currentRunSession = null;
   runSessionPromise = null;
+  latestCompletionCheckpointCandidate = null;
   checkpointQueue = Promise.resolve();
+}
+
+function captureCompletionCheckpointCandidate(snapshot: HudSnapshot): void {
+  if (
+    snapshot.isPaused ||
+    !isCompletionCheckpointTimingValid(snapshot.elapsedSeconds, getTotalMarathonDurationSeconds())
+  ) {
+    return;
+  }
+
+  latestCompletionCheckpointCandidate = {
+    elapsedSeconds: snapshot.elapsedSeconds,
+    collectedRecoveryItems: snapshot.collectedRecoveryItems,
+  };
 }
 
 function queueNetworkCheckpoint(snapshot: HudSnapshot): void {
@@ -522,6 +547,7 @@ function queueNetworkCheckpoint(snapshot: HudSnapshot): void {
       });
       if (generation === networkRunGeneration) {
         lastCheckpointElapsedSeconds = elapsedSeconds;
+        networkRunError = null;
       }
     })
     .catch((error: unknown) => {
@@ -536,23 +562,46 @@ async function submitFinalCheckpoint(
   result: GameOverResult,
   generation: number,
 ): Promise<void> {
-  // 完賽保留遊戲中最後一筆（通常約 70 秒）檢查點，讓伺服器確認
-  // 之後仍經過合理遊戲時間；中途停止才補送當下最終進度。
-  if (
-    result.outcome === 'completed' ||
-    generation !== networkRunGeneration ||
-    result.elapsedSeconds <= lastCheckpointElapsedSeconds
-  ) {
+  if (generation !== networkRunGeneration) {
     return;
   }
 
+  let checkpoint: ClientCheckpointSnapshot | null = null;
+  if (result.outcome === 'completed') {
+    // A periodic request can be lost on a mobile connection. Keep a recent
+    // snapshot and resend it before finish so pressing retry can self-heal.
+    if (isCompletionCheckpointTimingValid(lastCheckpointElapsedSeconds, result.elapsedSeconds)) {
+      return;
+    }
+
+    const candidate = latestCompletionCheckpointCandidate;
+    if (
+      candidate === null ||
+      !isCompletionCheckpointTimingValid(candidate.elapsedSeconds, result.elapsedSeconds)
+    ) {
+      throw new LeaderboardApiError(
+        'unprocessable',
+        '完賽驗證資料未完整同步，請確認網路後按「重新儲存」。',
+      );
+    }
+    checkpoint = candidate;
+  } else if (result.elapsedSeconds > lastCheckpointElapsedSeconds) {
+    checkpoint = {
+      elapsedSeconds: result.elapsedSeconds,
+      collectedRecoveryItems: result.collectedRecoveryItems,
+    };
+  }
+
+  if (checkpoint === null) return;
+
   await leaderboardApi.submitCheckpoint(session.id, {
     token: session.token,
-    elapsedSeconds: result.elapsedSeconds,
-    collectedRecoveryItems: result.collectedRecoveryItems,
+    elapsedSeconds: checkpoint.elapsedSeconds,
+    collectedRecoveryItems: checkpoint.collectedRecoveryItems,
   });
   if (generation === networkRunGeneration) {
-    lastCheckpointElapsedSeconds = result.elapsedSeconds;
+    lastCheckpointElapsedSeconds = checkpoint.elapsedSeconds;
+    networkRunError = null;
   }
 }
 

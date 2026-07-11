@@ -507,8 +507,10 @@ describe('GameUI', () => {
 
   it('暱稱必填且最多 12 字，可回報已儲存、未進榜與儲存失敗', async () => {
     const onScoreSubmit = vi.fn();
+    const onRestart = vi.fn();
+    const onHome = vi.fn();
     const writeText = mockClipboard();
-    ui = new GameUI({ root: '#app', callbacks: { onScoreSubmit } });
+    ui = new GameUI({ root: '#app', callbacks: { onScoreSubmit, onRestart, onHome } });
     ui.showGameOver({
       distanceMeters: 1_200,
       score: 1_500,
@@ -525,7 +527,14 @@ describe('GameUI', () => {
     const submit = document.querySelector<HTMLButtonElement>('[data-score-submit]');
     const status = document.querySelector<HTMLElement>('[data-score-save-status]');
     const shareButton = document.querySelector<HTMLButtonElement>('[data-share-button]');
+    const restartButton = document.querySelector<HTMLButtonElement>(
+      '[data-testid="restart-button"]',
+    );
+    const homeButton = document.querySelector<HTMLButtonElement>('[data-home-button]');
     expect(input?.maxLength).toBe(12);
+    expect(submit?.textContent?.trim()).toBe('送出並記錄');
+    expect(status?.textContent).toContain('成績不會自動上傳');
+    expect(status?.textContent).toContain('請輸入暱稱並按「送出並記錄」');
 
     submit?.click();
     expect(onScoreSubmit).not.toHaveBeenCalled();
@@ -535,10 +544,20 @@ describe('GameUI', () => {
     submit?.click();
     expect(onScoreSubmit).toHaveBeenCalledWith('abcdefghijkl');
     expect(input?.disabled).toBe(true);
+    expect(status?.textContent).toContain('完成前請留在此頁');
+    expect(restartButton?.disabled).toBe(true);
+    expect(homeButton?.disabled).toBe(true);
+    expect(shareButton?.disabled).toBe(true);
+    restartButton?.click();
+    homeButton?.click();
+    expect(onRestart).not.toHaveBeenCalled();
+    expect(onHome).not.toHaveBeenCalled();
 
     ui.setScoreSaved(3, '<b>跑者</b>');
     expect(status?.textContent).toContain('第 3 名');
     expect(document.querySelector('[data-score-form] b')).toBeNull();
+    expect(restartButton?.disabled).toBe(false);
+    expect(homeButton?.disabled).toBe(false);
     shareButton?.click();
     await vi.waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining('排行榜第 3 名')),
@@ -549,6 +568,8 @@ describe('GameUI', () => {
     expect(input?.value).toBe('');
     expect(input?.disabled).toBe(false);
     expect(submit?.disabled).toBe(false);
+    expect(submit?.textContent).toBe('送出並記錄');
+    expect(status?.textContent).toContain('成績不會自動上傳');
 
     if (input) input.value = '重試者';
     submit?.click();
@@ -556,6 +577,8 @@ describe('GameUI', () => {
     expect(input?.disabled).toBe(false);
     expect(submit?.disabled).toBe(false);
     expect(submit?.textContent).toBe('重新儲存');
+    expect(restartButton?.disabled).toBe(false);
+    expect(homeButton?.disabled).toBe(false);
     expect(status?.textContent).toBe('<b>寫入失敗</b>');
     expect(document.querySelector('[data-score-save-status] b')).toBeNull();
 

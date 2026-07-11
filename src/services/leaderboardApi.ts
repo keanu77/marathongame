@@ -80,16 +80,19 @@ export type LeaderboardApiErrorCode =
 export class LeaderboardApiError extends Error {
   public readonly code: LeaderboardApiErrorCode;
   public readonly status: number | null;
+  /** 伺服器回傳的機器可讀錯誤碼；只供診斷，不直接顯示給玩家。 */
+  public readonly serverCode: string | null;
 
   public constructor(
     code: LeaderboardApiErrorCode,
     message: string,
-    options: { status?: number; cause?: unknown } = {},
+    options: { status?: number; serverCode?: string; cause?: unknown } = {},
   ) {
     super(message, { cause: options.cause });
     this.name = 'LeaderboardApiError';
     this.code = code;
     this.status = options.status ?? null;
+    this.serverCode = options.serverCode ?? null;
   }
 }
 
@@ -112,6 +115,81 @@ const RESPONSE_LIMITS = {
   leaderboardEntries: 10,
   officialDistanceMeters: 42_195,
 } as const;
+
+const ERROR_RESPONSE_LIMITS = {
+  bodyBytes: 2_048,
+  code: 64,
+  message: 256,
+} as const;
+
+interface ServerErrorPresentation {
+  statuses: readonly number[];
+  code: LeaderboardApiErrorCode;
+  message: string;
+}
+
+/**
+ * Only these server codes may influence player-facing copy. The API-provided
+ * message is deliberately ignored so an upstream HTML/error page cannot be
+ * reflected into the UI.
+ */
+const SERVER_ERROR_PRESENTATIONS: Readonly<Record<string, ServerErrorPresentation>> = {
+  CHECKPOINT_REQUIRED: {
+    statuses: [422],
+    code: 'unprocessable',
+    message: '完賽驗證資料尚未完整同步，請按「重新儲存」再試一次。',
+  },
+  CHECKPOINT_INSUFFICIENT: {
+    statuses: [422],
+    code: 'unprocessable',
+    message: '完賽驗證資料尚未完整同步，請按「重新儲存」再試一次。',
+  },
+  RUN_ALREADY_SUBMITTED: {
+    statuses: [409],
+    code: 'conflict',
+    message: '這次成績可能已經儲存，請查看排行榜確認；若未出現再重新挑戰。',
+  },
+  RUN_NOT_FOUND: {
+    statuses: [404],
+    code: 'not_found',
+    message: '找不到這次遊戲紀錄，請重新開始後再試。',
+  },
+  INVALID_RUN_TOKEN: {
+    statuses: [401],
+    code: 'unauthorized',
+    message: '這次遊戲驗證已失效，請重新開始後再試。',
+  },
+  RUN_EXPIRED: {
+    statuses: [410],
+    code: 'conflict',
+    message: '這次遊戲紀錄已逾時，請重新開始後再試。',
+  },
+  RULES_VERSION_MISMATCH: {
+    statuses: [409],
+    code: 'conflict',
+    message: '遊戲驗證規則已更新，請重新整理頁面再挑戰。',
+  },
+  CHECKPOINT_CONFLICT: {
+    statuses: [409],
+    code: 'conflict',
+    message: '遊戲進度同步不一致，請重新開始後再試。',
+  },
+  RATE_LIMITED: {
+    statuses: [429],
+    code: 'rate_limited',
+    message: '提交次數過多，請稍後再試。',
+  },
+  SERVER_NOT_CONFIGURED: {
+    statuses: [500],
+    code: 'server_error',
+    message: '排行榜服務暫時無法使用，請稍後再試。',
+  },
+  INTERNAL_ERROR: {
+    statuses: [500],
+    code: 'server_error',
+    message: '排行榜服務暫時忙碌，請稍後再試。',
+  },
+};
 
 export class LeaderboardApiClient {
   private readonly fetchImplementation: LeaderboardFetch;
@@ -207,7 +285,10 @@ export class LeaderboardApiClient {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
 
-    if (!response.ok) throw createHttpError(response.status);
+    if (!response.ok) {
+      const serverCode = await parseServerErrorCode(response);
+      throw createHttpError(response.status, serverCode);
+    }
 
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
     if (!contentType.includes('application/json')) throw invalidResponseError();
@@ -429,47 +510,98 @@ function invalidResponseError(cause?: unknown): LeaderboardApiError {
   );
 }
 
-function createHttpError(status: number): LeaderboardApiError {
+async function parseServerErrorCode(response: Response): Promise<string | null> {
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+  if (!contentType.includes('application/json')) return null;
+
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    return null;
+  }
+  if (new TextEncoder().encode(text).byteLength > ERROR_RESPONSE_LIMITS.bodyBytes) return null;
+
+  try {
+    const root = JSON.parse(text) as unknown;
+    if (!hasExactKeys(root, ['error'])) return null;
+    const error = root.error;
+    if (!hasExactKeys(error, ['code', 'message'])) return null;
+    if (
+      typeof error.code !== 'string' ||
+      error.code.length > ERROR_RESPONSE_LIMITS.code ||
+      !/^[A-Z][A-Z0-9_]*$/u.test(error.code) ||
+      typeof error.message !== 'string' ||
+      error.message.trim() === '' ||
+      error.message.length > ERROR_RESPONSE_LIMITS.message
+    ) {
+      return null;
+    }
+    return error.code;
+  } catch {
+    return null;
+  }
+}
+
+function hasExactKeys(value: unknown, expectedKeys: readonly string[]): value is JsonRecord {
+  if (!isRecord(value)) return false;
+  const actualKeys = Object.keys(value);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => Object.hasOwn(value, key))
+  );
+}
+
+function createHttpError(status: number, serverCode: string | null): LeaderboardApiError {
+  const presentation = serverCode === null ? undefined : SERVER_ERROR_PRESENTATIONS[serverCode];
+  if (serverCode !== null && presentation?.statuses.includes(status)) {
+    return new LeaderboardApiError(presentation.code, presentation.message, {
+      status,
+      serverCode,
+    });
+  }
+
+  const options = { status, ...(serverCode === null ? {} : { serverCode }) };
   if (status === 400) {
     return new LeaderboardApiError(
       'bad_request',
       '排行榜收到的資料格式不正確，請重新開始後再試。',
-      { status },
+      options,
     );
   }
   if (status === 401) {
     return new LeaderboardApiError('unauthorized', '這次遊戲驗證已失效，請重新開始後再試。', {
-      status,
+      ...options,
     });
   }
   if (status === 403) {
-    return new LeaderboardApiError('forbidden', '這次成績無法提交，請重新挑戰。', { status });
+    return new LeaderboardApiError('forbidden', '這次成績無法提交，請重新挑戰。', options);
   }
   if (status === 404) {
     return new LeaderboardApiError('not_found', '找不到這次遊戲紀錄，請重新開始後再試。', {
-      status,
+      ...options,
     });
   }
   if (status === 408) {
-    return new LeaderboardApiError('timeout', '排行榜連線逾時，請稍後再試。', { status });
+    return new LeaderboardApiError('timeout', '排行榜連線逾時，請稍後再試。', options);
   }
   if (status === 409) {
     return new LeaderboardApiError('conflict', '這次遊戲已提交或已失效，請重新開始後再試。', {
-      status,
+      ...options,
     });
   }
   if (status === 422) {
-    return new LeaderboardApiError('unprocessable', '這次成績未通過驗證，請重新挑戰。', { status });
+    return new LeaderboardApiError('unprocessable', '這次成績未通過驗證，請重新挑戰。', options);
   }
   if (status === 429) {
-    return new LeaderboardApiError('rate_limited', '提交次數過多，請稍後再試。', { status });
+    return new LeaderboardApiError('rate_limited', '提交次數過多，請稍後再試。', options);
   }
   if (status >= 500) {
     return new LeaderboardApiError('server_error', '排行榜服務暫時忙碌，請稍後再試。', {
-      status,
+      ...options,
     });
   }
   return new LeaderboardApiError('http_error', '排行榜請求失敗，請稍後再試。', {
-    status,
+    ...options,
   });
 }

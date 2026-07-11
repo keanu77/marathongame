@@ -379,10 +379,12 @@ const UI_MARKUP = `
                   aria-describedby="score-save-status"
                 />
                 <button class="button button--save" data-score-submit type="submit">
-                  送出驗證
+                  送出並記錄
                 </button>
               </div>
-              <p id="score-save-status" class="score-save-status" data-score-save-status aria-live="polite"></p>
+              <p id="score-save-status" class="score-save-status" data-score-save-status aria-live="polite">
+                成績不會自動上傳；請輸入暱稱並按「送出並記錄」。
+              </p>
             </form>
 
             <div class="result-actions">
@@ -884,9 +886,9 @@ export class GameUI {
     input.disabled = false;
     input.removeAttribute('aria-invalid');
     button.disabled = false;
-    button.textContent = '送出驗證';
+    button.textContent = '送出並記錄';
     status.removeAttribute('data-state');
-    status.textContent = '';
+    status.textContent = '成績不會自動上傳；請輸入暱稱並按「送出並記錄」。';
     this.setScoreSubmissionPending(false);
   }
 
@@ -1053,7 +1055,7 @@ export class GameUI {
         button.disabled = true;
         this.setScoreSubmissionPending(true);
         status.dataset.state = 'pending';
-        status.textContent = '正在驗證成績；完成後即可分享含名次的圖卡…';
+        status.textContent = '正在驗證並記錄成績；完成前請留在此頁…';
         this.callbacks.onScoreSubmit(name);
       },
       { signal },
@@ -1580,6 +1582,13 @@ export class GameUI {
     const disabled = this.scoreSubmissionPending || this.shareAssetOperationPending;
     this.element<HTMLButtonElement>('[data-share-button]').disabled = disabled;
     this.element<HTMLButtonElement>('[data-download-share-card]').disabled = disabled;
+
+    // Leaving the result screen while the finish request is in flight would
+    // abandon its response and make a successful server write look like a
+    // failed submission. Keep both navigation exits locked until it settles.
+    this.element<HTMLButtonElement>('[data-testid="restart-button"]').disabled =
+      this.scoreSubmissionPending;
+    this.element<HTMLButtonElement>('[data-home-button]').disabled = this.scoreSubmissionPending;
   }
 
   private async copyToClipboard(text: string): Promise<boolean> {

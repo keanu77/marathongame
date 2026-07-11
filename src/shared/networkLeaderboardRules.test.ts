@@ -5,6 +5,7 @@ import {
   getTheoreticalMaximumAdditionalRecoveryItems,
   getTheoreticalMaximumRecoveryItems,
   getValidatedStageId,
+  isCompletionCheckpointTimingValid,
   MAX_LEADERBOARD_NAME_GRAPHEMES,
   sanitizeLeaderboardName,
   SERVER_START_SKEW_TOLERANCE_MS,
@@ -40,6 +41,14 @@ describe('network leaderboard score rules', () => {
 });
 
 describe('checkpoint validation', () => {
+  it('shares the exact 60–75 second completion checkpoint window with the client', () => {
+    expect(isCompletionCheckpointTimingValid(60, 80)).toBe(true);
+    expect(isCompletionCheckpointTimingValid(75, 80)).toBe(true);
+    expect(isCompletionCheckpointTimingValid(59.999, 80)).toBe(false);
+    expect(isCompletionCheckpointTimingValid(75.001, 80)).toBe(false);
+    expect(isCompletionCheckpointTimingValid(Number.NaN, 80)).toBe(false);
+  });
+
   it('accepts monotonic progress and an identical retry', () => {
     const first = validateCheckpoint({
       elapsedSeconds: 20,

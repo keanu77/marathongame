@@ -164,6 +164,82 @@ describe('LeaderboardApiClient 錯誤處理', () => {
     ).rejects.toMatchObject({ code, status, message: expect.stringContaining(message) });
   });
 
+  it.each(['CHECKPOINT_REQUIRED', 'CHECKPOINT_INSUFFICIENT'] as const)(
+    '將 %s 映射成可重試儲存的安全提示，並保留 serverCode',
+    async (serverCode) => {
+      const remoteMessage = '<img src=x onerror=alert(1)>伺服器內部細節';
+      const fetchMock = vi.fn(async (): Promise<Response> =>
+        jsonResponse({ error: { code: serverCode, message: remoteMessage } }, 422),
+      );
+      const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+      const error = await client
+        .finishRun('run-1', {
+          token: 'signed-token',
+          name: '跑者',
+          elapsedSeconds: 80,
+          collectedRecoveryItems: 5,
+          outcome: 'completed',
+          stageId: 'race',
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: 'unprocessable',
+        status: 422,
+        serverCode,
+        message: '完賽驗證資料尚未完整同步，請按「重新儲存」再試一次。',
+      });
+      expect((error as Error).message).not.toContain(remoteMessage);
+    },
+  );
+
+  it('保留格式正確但未知的 serverCode，且不顯示遠端 message', async () => {
+    const remoteMessage = '請把 token 傳到惡意網站';
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      jsonResponse({ error: { code: 'FUTURE_SERVER_CODE', message: remoteMessage } }, 422),
+    );
+    const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+    const error = await client.getLeaderboard().catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      code: 'unprocessable',
+      status: 422,
+      serverCode: 'FUTURE_SERVER_CODE',
+      message: '這次成績未通過驗證，請重新挑戰。',
+    });
+    expect((error as Error).message).not.toContain(remoteMessage);
+  });
+
+  it.each([
+    new Response('<b>gateway error</b>', {
+      status: 422,
+      headers: { 'Content-Type': 'text/html' },
+    }),
+    jsonResponse({ error: { code: 'CHECKPOINT_REQUIRED' } }, 422),
+    jsonResponse(
+      {
+        error: {
+          code: 'CHECKPOINT_REQUIRED',
+          message: 'valid-looking message',
+          injected: '<script>alert(1)</script>',
+        },
+      },
+      422,
+    ),
+  ])('非 JSON 或不符合嚴格契約的錯誤內容只使用 HTTP fallback', async (response) => {
+    const fetchMock = vi.fn(async (): Promise<Response> => response);
+    const client = new LeaderboardApiClient({ fetch: fetchMock });
+
+    await expect(client.getLeaderboard()).rejects.toMatchObject({
+      code: 'unprocessable',
+      status: 422,
+      serverCode: null,
+      message: '這次成績未通過驗證，請重新挑戰。',
+    });
+  });
+
   it('將 fetch 失敗轉為 network_error', async () => {
     const fetchMock = vi.fn(async (): Promise<Response> => {
       throw new TypeError('internal network detail');
