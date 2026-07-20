@@ -3,7 +3,7 @@
 [![CI](https://github.com/keanu77/marathongame/actions/workflows/ci.yml/badge.svg)](https://github.com/keanu77/marathongame/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[立即遊玩](https://marathongame.pages.dev/) · [GitHub 原始碼](https://github.com/keanu77/marathongame) · [衛教跑酷遊戲開發指南](./衛教跑酷遊戲開發指南.md)
+[立即遊玩](https://marathongame.sportsmedicine.tw/) · [GitHub 原始碼](https://github.com/keanu77/marathongame) · [衛教跑酷遊戲開發指南](./衛教跑酷遊戲開發指南.md)
 
 「馬拉松完賽訓練」是一款繁體中文 2D 橫向跑酷衛教遊戲。玩家依序通過「基礎期 → 進階期 → 正式比賽」三關，在有限時間內管理體力、受傷風險與配速，並透過跳躍避開負向事件、收集正向道具。三關合計約 80 秒；撐到終點即完賽，體力降至 0 或受傷風險達 100 則中途停止。
 
