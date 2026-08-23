@@ -32,18 +32,18 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@playwright/test": "^1.57.0",
-    "@types/node": "^24.10.1",
-    "eslint": "^9.39.1",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^16.5.0",
-    "jsdom": "^27.3.0",
-    "prettier": "^3.7.4",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.0",
-    "vite": "^7.2.7",
-    "vitest": "^4.0.16",
-    "wrangler": "^4.110.0"
+    "globals": "^17.11.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.67.0",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.125.0"
   }
 }
